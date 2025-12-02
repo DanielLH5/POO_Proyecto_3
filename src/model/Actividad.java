@@ -1,160 +1,91 @@
 package model;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.Serializable;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
-/*
-Representa una actividad planificada realizada por una brigada.
-Contiene información sobre la planificación, ejecución y resultados de una acción específica de ayuda comunitaria.
-*/
-public class Actividad {
+public class Actividad implements Serializable {
     private String id;
-    private String descripcion;
-    private String fecha; // Formato: "dd/MM/yyyy"
+    private String nombre;
+    private Date fecha;
     private String lugar;
     private String objetivo;
-    private List<Beneficiario> beneficiarios;
-    private List<Voluntario> voluntariosAsignados;
-    private List<Recurso> recursosAsignados;
-    private String resultado; // Descripción textual de los resultados
-    private int personasBeneficiadas;
+    private Brigada brigadaAsociada;
+    private String resultados;
+    private Map<String, String> voluntariosAsignados;
+    private Map<String, Integer> recursosAsignados;
 
     public Actividad() {
-        this.beneficiarios = new ArrayList<>();
-        this.voluntariosAsignados = new ArrayList<>();
-        this.recursosAsignados = new ArrayList<>();
+        this.voluntariosAsignados = new HashMap<>();
+        this.recursosAsignados = new HashMap<>();
     }
 
-    public Actividad(String id, String descripcion, String fecha, String lugar, String objetivo) {
+    public Actividad(String id, String nombre, Date fecha, String lugar,
+                     String objetivo, Brigada brigadaAsociada) {
         this();
         this.id = id;
-        this.descripcion = descripcion;
+        this.nombre = nombre;
         this.fecha = fecha;
         this.lugar = lugar;
         this.objetivo = objetivo;
+        this.brigadaAsociada = brigadaAsociada;
     }
 
-    /*
-    Agrega un beneficiario a la actividad
-    */
-    public void agregarBeneficiario(Beneficiario beneficiario) {
-        if (!beneficiarios.contains(beneficiario)) {
-            beneficiarios.add(beneficiario);
-        }
+    // Getters
+    public String getId() { return id; }
+    public String getNombre() { return nombre; }
+    public Date getFecha() { return fecha; }
+    public String getLugar() { return lugar; }
+    public String getObjetivo() { return objetivo; }
+    public Brigada getBrigadaAsociada() { return brigadaAsociada; }
+    public String getResultados() { return resultados; }
+    public Map<String, String> getVoluntariosAsignados() { return voluntariosAsignados; }
+    public Map<String, Integer> getRecursosAsignados() { return recursosAsignados; }
+
+    // Setters
+    public void setId(String id) { this.id = id; }
+    public void setNombre(String nombre) { this.nombre = nombre; }
+    public void setFecha(Date fecha) { this.fecha = fecha; }
+    public void setLugar(String lugar) { this.lugar = lugar; }
+    public void setObjetivo(String objetivo) { this.objetivo = objetivo; }
+    public void setBrigadaAsociada(Brigada brigadaAsociada) { this.brigadaAsociada = brigadaAsociada; }
+    public void setResultados(String resultados) { this.resultados = resultados; }
+
+    public void asignarVoluntario(String idVoluntario, String rol) {
+        this.voluntariosAsignados.put(idVoluntario, rol);
     }
 
-    /*
-    Asigna un voluntario a la actividad
-    */
-    public void asignarVoluntario(Voluntario voluntario) {
-        if (!voluntariosAsignados.contains(voluntario)) {
-            voluntariosAsignados.add(voluntario);
-        }
+    public void eliminarVoluntario(String idVoluntario) {
+        this.voluntariosAsignados.remove(idVoluntario);
     }
 
-    /*
-    Asigna un recurso a la actividad
-    */
-    public void asignarRecurso(Recurso recurso) {
-        if (!recursosAsignados.contains(recurso)) {
-            recursosAsignados.add(recurso);
-        }
+    public void registrarUsoRecurso(String idRecurso, int cantidad) {
+        this.recursosAsignados.put(idRecurso, cantidad);
     }
 
-    // Getters y setters
-    public String getId() {
-        return id;
+    public void eliminarRecurso(String idRecurso) {
+        this.recursosAsignados.remove(idRecurso);
     }
 
-    public Actividad setId(String id) {
-        this.id = id;
-        return this;
+    public boolean tieneVoluntarioAsignado(String idVoluntario) {
+        return this.voluntariosAsignados.containsKey(idVoluntario);
     }
 
-    public String getDescripcion() {
-        return descripcion;
+    public String getRolVoluntario(String idVoluntario) {
+        return this.voluntariosAsignados.get(idVoluntario);
     }
 
-    public Actividad setDescripcion(String descripcion) {
-        this.descripcion = descripcion;
-        return this;
+    public Map<String, String> getAsignacionesVoluntarios() {
+        return new HashMap<>(voluntariosAsignados); // Retorna copia para evitar modificación externa
     }
 
-    public String getFecha() {
-        return fecha;
-    }
-
-    public Actividad setFecha(String fecha) {
-        this.fecha = fecha;
-        return this;
-    }
-
-    public String getLugar() {
-        return lugar;
-    }
-
-    public Actividad setLugar(String lugar) {
-        this.lugar = lugar;
-        return this;
-    }
-
-    public String getObjetivo() {
-        return objetivo;
-    }
-
-    public Actividad setObjetivo(String objetivo) {
-        this.objetivo = objetivo;
-        return this;
-    }
-
-    public List<Beneficiario> getBeneficiarios() {
-        return beneficiarios;
-    }
-
-    public Actividad setBeneficiarios(List<Beneficiario> beneficiarios) {
-        this.beneficiarios = beneficiarios;
-        return this;
-    }
-
-    public List<Voluntario> getVoluntariosAsignados() {
-        return voluntariosAsignados;
-    }
-
-    public Actividad setVoluntariosAsignados(List<Voluntario> voluntariosAsignados) {
-        this.voluntariosAsignados = voluntariosAsignados;
-        return this;
-    }
-
-    public List<Recurso> getRecursosAsignados() {
-        return recursosAsignados;
-    }
-
-    public Actividad setRecursosAsignados(List<Recurso> recursosAsignados) {
-        this.recursosAsignados = recursosAsignados;
-        return this;
-    }
-
-    public String getResultado() {
-        return resultado;
-    }
-
-    public Actividad setResultado(String resultado) {
-        this.resultado = resultado;
-        return this;
-    }
-
-    public int getPersonasBeneficiadas() {
-        return personasBeneficiadas;
-    }
-
-    public Actividad setPersonasBeneficiadas(int personasBeneficiadas) {
-        this.personasBeneficiadas = personasBeneficiadas;
-        return this;
+    public int getCantidadVoluntarios() {
+        return this.voluntariosAsignados.size();
     }
 
     @Override
     public String toString() {
-        return "Actividad{" + "id=" + id + ", descripcion=" + descripcion + ", fecha=" + fecha + ", lugar=" + lugar +
-                ", beneficiarios=" + beneficiarios.size() + '}';
+        return nombre + " (" + lugar + ", " + fecha + ")";
     }
 }

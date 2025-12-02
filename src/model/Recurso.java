@@ -1,103 +1,144 @@
 package model;
 
-import gestores.Gestionable;
+import java.io.Serializable;
 
-/*
-Representa un recurso material disponible para las actividades de las brigadas.
-Implementa la interfaz Gestionable para permitir el control de disponibilidad y cantidad del recurso en el inventario del sistema.
-*/
-public class Recurso implements Gestionable {
+public class Recurso implements Serializable {
     private String id;
     private String nombre;
-    private String tipo; // "material", "herramienta", "equipo", "transporte"
-    private int cantidadDisponible;
-    private String unidad; // "kg", "litros", "unidades", "cajas"
+    private String categoria;  // Cambié "tipo" por "categoria" para coincidir con GestorRecursos
+    private int stockActual;
+    private int umbralAlerta;
+    private int capacidadMaxima;  // Falta
+    private String unidadMedida;  // Falta
 
-    public Recurso() {}
+    public Recurso() {
+        this.umbralAlerta = 10;
+        this.capacidadMaxima = 100;
+        this.unidadMedida = "Unidad";
+    }
 
-    public Recurso(String id, String nombre, String tipo, int cantidadDisponible, String unidad) {
+    // Constructor completo
+    public Recurso(String id, String nombre, String categoria, int capacidadMaxima, int umbralAlerta, String unidadMedida) {
         this.id = id;
         this.nombre = nombre;
-        this.tipo = tipo;
-        this.cantidadDisponible = cantidadDisponible;
-        this.unidad = unidad;
+        this.categoria = categoria;
+        this.capacidadMaxima = capacidadMaxima;
+        this.umbralAlerta = umbralAlerta;
+        this.unidadMedida = unidadMedida;
+        this.stockActual = 0; // Inicialmente sin stock
     }
 
-    // Implementación de la interfaz Gestionable
-    @Override
-    public boolean estaDisponible() {
-        return cantidadDisponible > 0;
+    // Constructor con stock inicial (para compatibilidad)
+    public Recurso(String id, String nombre, String categoria, int stockInicial, int umbralAlerta, int capacidadMaxima, String unidadMedida) {
+        this(id, nombre, categoria, capacidadMaxima, umbralAlerta, unidadMedida);
+        this.stockActual = stockInicial;
     }
 
-    @Override
-    public void actualizarCantidad(int cantidad) {
-        this.cantidadDisponible = cantidad;
+    // Getters
+    public String getId() { return id; }
+    public String getNombre() { return nombre; }
+    public String getCategoria() { return categoria; }
+    public String getTipo() { return categoria; } // Para compatibilidad con código existente
+    public int getStockActual() { return stockActual; }
+    public int getUmbralAlerta() { return umbralAlerta; }
+    public int getCapacidadMaxima() { return capacidadMaxima; }
+    public String getUnidadMedida() { return unidadMedida; }
+
+    // Setters
+    public void setId(String id) { this.id = id; }
+    public void setNombre(String nombre) { this.nombre = nombre; }
+    public void setCategoria(String categoria) { this.categoria = categoria; }
+    public void setTipo(String tipo) { this.categoria = tipo; } // Para compatibilidad
+    public void setStockActual(int stockActual) {
+        if (stockActual >= 0 && stockActual <= capacidadMaxima) {
+            this.stockActual = stockActual;
+        } else {
+            throw new IllegalArgumentException("Stock debe estar entre 0 y " + capacidadMaxima);
+        }
+    }
+    public void setUmbralAlerta(int umbralAlerta) {
+        if (umbralAlerta >= 0 && umbralAlerta <= capacidadMaxima) {
+            this.umbralAlerta = umbralAlerta;
+        }
+    }
+    public void setCapacidadMaxima(int capacidadMaxima) {
+        if (capacidadMaxima > 0) {
+            this.capacidadMaxima = capacidadMaxima;
+        }
+    }
+    public void setUnidadMedida(String unidadMedida) { this.unidadMedida = unidadMedida; }
+
+    public boolean consultarDisponibilidad(int cantidadRequerida) {
+        return this.stockActual >= cantidadRequerida;
     }
 
-    /*
-    Reduce la cantidad disponible del recurso
-    */
-    public void consumir(int cantidad) {
-        if (cantidad <= cantidadDisponible) {
-            cantidadDisponible -= cantidad;
+    public void deducirStock(int cantidad) {
+        if (cantidad <= 0) {
+            throw new IllegalArgumentException("La cantidad a deducir debe ser positiva");
+        }
+        if (this.stockActual >= cantidad) {
+            this.stockActual -= cantidad;
+            verificarAlerta();
+        } else {
+            throw new IllegalArgumentException("Error de stock: No se puede deducir " + cantidad + " de " + this.stockActual + ".");
         }
     }
 
-    /*
-    Aumenta la cantidad disponible del recurso
-    */
-    public void reponer(int cantidad) {
-        cantidadDisponible += cantidad;
+    public void reponerStock(int cantidad) {
+        if (cantidad <= 0) {
+            throw new IllegalArgumentException("La cantidad a reponer debe ser positiva");
+        }
+        if (this.stockActual + cantidad <= this.capacidadMaxima) {
+            this.stockActual += cantidad;
+        } else {
+            throw new IllegalArgumentException("Excede la capacidad máxima. Capacidad: " +
+                    capacidadMaxima + ", Stock actual: " + stockActual);
+        }
     }
 
-    // Getters y setters
-    public String getId() {
-        return id;
+    public void verificarAlerta() {
+        if (this.stockActual <= this.umbralAlerta) {
+            System.out.println("[ALERTA] Stock Bajo para: " + this.nombre +
+                    " (Stock actual: " + this.stockActual + ", Umbral: " + this.umbralAlerta + ")");
+        }
     }
 
-    public Recurso setId(String id) {
-        this.id = id;
-        return this;
+    public boolean tieneStockBajo() {
+        return this.stockActual <= this.umbralAlerta;
     }
 
-    public String getNombre() {
-        return nombre;
+    public boolean estaAgotado() {
+        return this.stockActual <= 0;
     }
 
-    public Recurso setNombre(String nombre) {
-        this.nombre = nombre;
-        return this;
+    public int getStockDisponible() {
+        return this.stockActual;
     }
 
-    public String getTipo() {
-        return tipo;
+    public int getEspacioDisponible() {
+        return this.capacidadMaxima - this.stockActual;
     }
 
-    public Recurso setTipo(String tipo) {
-        this.tipo = tipo;
-        return this;
-    }
-
-    public int getCantidadDisponible() {
-        return cantidadDisponible;
-    }
-
-    public Recurso setCantidadDisponible(int cantidadDisponible) {
-        this.cantidadDisponible = cantidadDisponible;
-        return this;
-    }
-
-    public String getUnidad() {
-        return unidad;
-    }
-
-    public Recurso setUnidad(String unidad) {
-        this.unidad = unidad;
-        return this;
+    public double getPorcentajeDisponible() {
+        if (capacidadMaxima == 0) return 0.0;
+        return (double) stockActual / capacidadMaxima * 100;
     }
 
     @Override
     public String toString() {
-        return "Recurso{" + "id=" + id + ", nombre=" + nombre + ", tipo=" + tipo + ", cantidad=" + cantidadDisponible + " " + unidad + '}';
+        return nombre + " (" + categoria + ", Stock: " + stockActual + "/" + capacidadMaxima + " " + unidadMedida + ")";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Recurso recurso = (Recurso) obj;
+        return id.equals(recurso.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id.hashCode();
     }
 }
