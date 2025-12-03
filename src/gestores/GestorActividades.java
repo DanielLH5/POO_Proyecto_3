@@ -471,7 +471,11 @@ public class GestorActividades {
     /**
      * Registra resultados completos de actividad (NUEVO MÉTODO para RF-07).
      */
-    public void registrarResultados(String actividadId, int personasBeneficiadas, double horasTrabajadas, String resultados, String observaciones)
+    /**
+     * Registra resultados completos de actividad (NUEVO MÉTODO para RF-07).
+     */
+    public void registrarResultados(String actividadId, int personasBeneficiadas,
+                                    double horasTrabajadas, String resultados, String observaciones)
             throws BrigadaException {
 
         Actividad actividad = obtenerActividadPorId(actividadId);
@@ -496,7 +500,13 @@ public class GestorActividades {
 
             actividad.setResultados(resultadosCompletos);
             guardarActividades();
-            System.out.println("[INFO] Resultados completos registrados para la actividad '" + actividad.getNombre() + "'.");
+            System.out.println("[INFO] Resultados completos registrados para la actividad '" +
+                    actividad.getNombre() + "'.");
+
+            // DEBUG: Verificar que se guardó
+            System.out.println("[DEBUG] Resultados guardados: " + actividad.getResultados());
+            System.out.println("[DEBUG] Estado después de registrar: " +
+                    actividad.determinarEstado());
 
         } catch (Exception e) {
             throw new BrigadaException("Error al registrar resultados: " + e.getMessage());

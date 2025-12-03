@@ -67,6 +67,22 @@ public class Actividad implements Serializable {
         }
     }
 
+    // En la clase Actividad, agrega este método:
+    public String determinarEstado() {
+        Date ahora = new Date();
+
+        if (this.fecha.after(ahora)) {
+            return "Pendiente";
+        } else if (this.fecha.before(ahora) &&
+                (this.resultados == null || this.resultados.isEmpty())) {
+            return "En proceso";
+        } else if (this.resultados != null && !this.resultados.isEmpty()) {
+            return "Completada";
+        } else {
+            return "Planificada";
+        }
+    }
+
     // SETTER PARA recursosAsignados - AÑADIDO
     public void setRecursosAsignados(Map<String, Integer> recursosAsignados) {
         if (recursosAsignados == null) {
