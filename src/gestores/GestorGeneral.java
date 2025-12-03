@@ -12,6 +12,8 @@ public class GestorGeneral {
     private GestorBrigadas gestorBrigadas;
     private GestorActividades gestorActividades;
     private GestorRecursos gestorRecursos;
+    private GestorResultados gestorResultados;
+
 
     public GestorGeneral() {
         // 1. Inicializar persistencia
@@ -20,8 +22,9 @@ public class GestorGeneral {
         // 2. Inicializar gestores de negocio
         gestorVoluntarios = new GestorVoluntarios();
         gestorBrigadas = new GestorBrigadas(gestorVoluntarios);
-        gestorActividades = new GestorActividades(gestorBrigadas, gestorVoluntarios);
+        gestorActividades = new GestorActividades(gestorBrigadas, gestorVoluntarios, gestorRecursos);
         gestorRecursos = new GestorRecursos();
+        this.gestorResultados = new GestorResultados(gestorActividades);
 
         // 3. Sincronizar datos de persistencia con gestores
         sincronizarDatos();
@@ -74,6 +77,10 @@ public class GestorGeneral {
 
     public GestorUsuarios getGestorUsuarios() {
         return gestorUsuarios;
+    }
+
+    public GestorResultados getGestorResultados() {
+        return gestorResultados;
     }
 
     // Métodos para el sistema de registro/login

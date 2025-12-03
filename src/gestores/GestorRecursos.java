@@ -257,6 +257,21 @@ public class GestorRecursos {
         return recursosBajoStock;
     }
 
+    public List<Recurso> obtenerRecursosDeActividad(Actividad actividad) {
+        List<Recurso> recursos = new ArrayList<>();
+
+        if (actividad.getRecursosAsignados() != null) {
+            for (String recursoId : actividad.getRecursosAsignados().keySet()) {
+                Recurso recurso = buscarRecursoPorId(recursoId);
+                if (recurso != null) {
+                    recursos.add(recurso);
+                }
+            }
+        }
+
+        return recursos;
+    }
+
     /**
      * Repone stock de un recurso con persistencia.
      */

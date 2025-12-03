@@ -1,18 +1,25 @@
 package gui;
 
 import gestores.GestorActividades;
+import gestores.GestorBrigadas;
 import gestores.GestorGeneral;
+import gestores.GestorRecursos;
 import model.*;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellEditor;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Date;
+import java.io.File;
+import java.util.*;
+
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Clipboard;
+import java.awt.Toolkit;
 import java.util.List;
 
 public class DashboardCoordUI extends JFrame {
@@ -30,6 +37,7 @@ public class DashboardCoordUI extends JFrame {
     private Coordinador coordinador;
     private GestorGeneral gestorGeneral;
     private GestorActividades gestorActividades;
+    private GestorBrigadas gestorBrigadas;
     private CardLayout cardLayout;
     private JPanel cardPanel;
 
@@ -45,6 +53,7 @@ public class DashboardCoordUI extends JFrame {
         this.coordinador = coordinador;
         this.gestorGeneral = gestorGeneral;
         this.gestorActividades = gestorGeneral.getGestorActividades();
+        this.gestorBrigadas = gestorGeneral.getGestorBrigadas();
         initUI();
     }
 
@@ -120,19 +129,6 @@ public class DashboardCoordUI extends JFrame {
         // Información de Usuario y Notificaciones
         JPanel userPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 0));
         userPanel.setOpaque(false);
-
-        // Icono de Notificación (Simulación)
-        JLabel notifIcon = new JLabel("🔔");
-        notifIcon.setFont(new Font("Arial", Font.PLAIN, 20));
-        notifIcon.setForeground(Color.GRAY);
-        notifIcon.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        notifIcon.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                mostrarNotificaciones();
-            }
-        });
-        userPanel.add(notifIcon);
 
         // Avatar/Nombre de Usuario
         JPanel avatarPanel = new JPanel(new BorderLayout(5, 0));
@@ -1748,23 +1744,22 @@ public class DashboardCoordUI extends JFrame {
         }
     }
 
-    /**
-     * Actualiza la tabla de voluntarios
-     */
     private void actualizarTablaVoluntarios() {
-        Component[] components = voluntariosPanel.getComponents();
-        for (Component comp : components) {
-            if (comp instanceof JScrollPane) {
-                JViewport viewport = ((JScrollPane) comp).getViewport();
-                if (viewport.getView() instanceof JTable) {
-                    JTable tabla = (JTable) viewport.getView();
+        SwingUtilities.invokeLater(() -> {
+            // Buscar el JScrollPane en el panel de voluntarios
+            JScrollPane scrollPane = findScrollPaneInPanel(voluntariosPanel);
+
+            if (scrollPane != null) {
+                Component view = scrollPane.getViewport().getView();
+                if (view instanceof JTable) {
+                    JTable tabla = (JTable) view;
                     DefaultTableModel model = (DefaultTableModel) tabla.getModel();
                     cargarVoluntariosEnTabla(model);
                     tabla.repaint();
-                    break;
+                    tabla.revalidate();
                 }
             }
-        }
+        });
     }
 
     /**
@@ -1806,31 +1801,58 @@ public class DashboardCoordUI extends JFrame {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.setBackground(BACKGROUND_GRAY);
-        panel.setBorder(new EmptyBorder(30, 40, 30, 40));
+        panel.setBorder(new EmptyBorder(20, 40, 20, 40)); // Reducido un poco el margen superior
+
+        // Panel superior con título y botón de actualización
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setOpaque(false);
+        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         // Título de bienvenida
         JLabel welcomeTitle = new JLabel("¡Hola, Coordinador " + coordinador.getNombre() + "!");
         welcomeTitle.setFont(new Font("Arial", Font.BOLD, 28));
-        welcomeTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        panel.add(welcomeTitle);
+        headerPanel.add(welcomeTitle, BorderLayout.WEST);
 
+        // Botón de actualización
+        JButton actualizarBtn = new JButton("Actualizar Datos");
+        actualizarBtn.setFont(new Font("Arial", Font.PLAIN, 12));
+        actualizarBtn.setBackground(PRIMARY_BLUE);
+        actualizarBtn.setForeground(Color.WHITE);
+        actualizarBtn.setFocusPainted(false);
+        actualizarBtn.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+        actualizarBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        actualizarBtn.setToolTipText("Actualizar todos los datos del dashboard");
+
+        // Acción para actualizar los datos
+        actualizarBtn.addActionListener(e -> actualizarDashboard());
+
+        // Panel para el botón (para mantenerlo a la derecha)
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.setOpaque(false);
+        buttonPanel.add(actualizarBtn);
+        headerPanel.add(buttonPanel, BorderLayout.EAST);
+
+        panel.add(headerPanel);
+        panel.add(Box.createVerticalStrut(10)); // Espacio reducido
+
+        // Subtítulo
         JLabel subtitle = new JLabel("Área de Responsabilidad: " + coordinador.getAreaResponsabilidad());
         subtitle.setFont(new Font("Arial", Font.PLAIN, 14));
         subtitle.setForeground(Color.GRAY);
         subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(subtitle);
 
-        panel.add(Box.createVerticalStrut(30));
+        panel.add(Box.createVerticalStrut(20)); // Espacio reducido
 
         // Panel de Tarjetas de Estadísticas
         panel.add(createStatsPanel());
 
-        panel.add(Box.createVerticalStrut(30));
+        panel.add(Box.createVerticalStrut(20)); // Espacio reducido
 
         // Panel de Acciones Rápidas
         panel.add(createAccionesRapidasPanel());
 
-        panel.add(Box.createVerticalStrut(30));
+        panel.add(Box.createVerticalStrut(20)); // Espacio reducido
 
         // Panel de Actividades Pendientes
         panel.add(createActividadesPendientesPanel());
@@ -1838,6 +1860,236 @@ public class DashboardCoordUI extends JFrame {
         panel.add(Box.createVerticalGlue());
 
         return panel;
+    }
+
+    /**
+     * Método para actualizar todos los datos del dashboard
+     */
+    private void actualizarDashboard() {
+        // Mostrar indicador de carga
+        JDialog loadingDialog = new JDialog(this, "Actualizando...", false);
+        loadingDialog.setLayout(new BorderLayout());
+        loadingDialog.setSize(200, 100);
+        loadingDialog.setLocationRelativeTo(this);
+
+        JPanel loadingPanel = new JPanel(new BorderLayout());
+        loadingPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        JLabel loadingLabel = new JLabel("Actualizando datos del dashboard...");
+        loadingLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        loadingPanel.add(loadingLabel, BorderLayout.CENTER);
+
+        loadingDialog.add(loadingPanel);
+        loadingDialog.setVisible(true);
+
+        new Thread(() -> {
+            try {
+                // Actualizar todas las tablas
+                actualizarTodasLasTablas();
+
+                // Actualizar estadísticas
+                SwingUtilities.invokeLater(() -> {
+                    // Actualizar el panel de estadísticas
+                    actualizarEstadisticas();
+                });
+
+                Thread.sleep(500); // Dar tiempo para que se completen
+
+                SwingUtilities.invokeLater(() -> {
+                    loadingDialog.dispose();
+                    JOptionPane.showMessageDialog(this,
+                            "Dashboard actualizado exitosamente",
+                            "Actualización Completada",
+                            JOptionPane.INFORMATION_MESSAGE);
+                });
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    loadingDialog.dispose();
+                    JOptionPane.showMessageDialog(this,
+                            "Error al actualizar: " + e.getMessage(),
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * Actualiza todas las tablas del sistema (para uso general)
+     */
+    public void actualizarTodasLasTablas() {
+        SwingUtilities.invokeLater(() -> {
+            actualizarTablaActividades();
+            actualizarTablaBrigadas();
+            actualizarTablaVoluntarios();
+            actualizarTablaRecursos();
+            cargarHistorialCompleto(); // Para reportes
+        });
+    }
+
+    /**
+     * Actualiza las estadísticas del dashboard (tarjetas de estadísticas)
+     */
+    private void actualizarEstadisticas() {
+        // Obtener los datos actualizados
+        int brigadasActivas = obtenerCantidadBrigadasActivas();
+        int totalVoluntarios = obtenerTotalVoluntarios();
+        int actividadesProgramadas = obtenerCantidadActividadesProgramadas();
+        int recursosDisponibles = obtenerPorcentajeRecursosDisponibles();
+
+        // Encontrar y actualizar las tarjetas en el panel de inicio
+        SwingUtilities.invokeLater(() -> {
+            Component[] components = inicioPanel.getComponents();
+
+            for (Component comp : components) {
+                if (comp instanceof JPanel) {
+                    JPanel panel = (JPanel) comp;
+
+                    // Buscar el panel de estadísticas (que tiene FlowLayout)
+                    if (panel.getLayout() instanceof FlowLayout) {
+                        Component[] cards = panel.getComponents();
+
+                        // Actualizar cada tarjeta
+                        for (int i = 0; i < cards.length && i < 4; i++) {
+                            if (cards[i] instanceof JPanel) {
+                                JPanel card = (JPanel) cards[i];
+
+                                // Actualizar según el índice
+                                switch (i) {
+                                    case 0: // Brigadas Activas
+                                        actualizarTarjetaEstadistica(card, "Brigadas Activas",
+                                                String.valueOf(brigadasActivas), "🏢", PRIMARY_BLUE);
+                                        break;
+                                    case 1: // Total Voluntarios
+                                        actualizarTarjetaEstadistica(card, "Total Voluntarios",
+                                                String.valueOf(totalVoluntarios), "👥", CARD_GREEN);
+                                        break;
+                                    case 2: // Actividades Programadas
+                                        actualizarTarjetaEstadistica(card, "Actividades Programadas",
+                                                String.valueOf(actividadesProgramadas), "📅", CARD_PURPLE);
+                                        break;
+                                    case 3: // Recursos Disponibles
+                                        actualizarTarjetaEstadistica(card, "Recursos Disponibles",
+                                                recursosDisponibles + "%", "📦", CARD_ORANGE);
+                                        break;
+                                }
+                            }
+                        }
+                        break; // Salir del bucle una vez encontrado
+                    }
+                }
+            }
+
+            // También actualizar el panel de actividades pendientes
+            actualizarActividadesPendientesPanel();
+        });
+    }
+
+    /**
+     * Método auxiliar para actualizar una tarjeta de estadística individual
+     */
+    private void actualizarTarjetaEstadistica(JPanel card, String titulo, String valor, String icono, Color color) {
+        // Limpiar la tarjeta
+        card.removeAll();
+        card.setLayout(new BorderLayout());
+
+        // Contenido de la tarjeta
+        JPanel content = new JPanel(new BorderLayout());
+        content.setOpaque(false);
+
+        JLabel titleLabel = new JLabel(titulo);
+        titleLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+        titleLabel.setForeground(Color.GRAY);
+        content.add(titleLabel, BorderLayout.NORTH);
+
+        JLabel valueLabel = new JLabel(valor);
+        valueLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        valueLabel.setForeground(Color.BLACK);
+        content.add(valueLabel, BorderLayout.WEST);
+
+        JLabel iconLabel = new JLabel(icono);
+        iconLabel.setFont(new Font("Arial", Font.BOLD, 28));
+        iconLabel.setForeground(color);
+        content.add(iconLabel, BorderLayout.EAST);
+
+        card.add(content, BorderLayout.CENTER);
+
+        // Agregar listener para clic
+        card.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                card.setBackground(new Color(240, 240, 240));
+                Timer timer = new Timer(200, e -> {
+                    card.setBackground(Color.WHITE);
+                });
+                timer.setRepeats(false);
+                timer.start();
+
+                JOptionPane.showMessageDialog(card,
+                        "Estadística: " + titulo + "\n" +
+                                "Valor actual: " + valor + "\n" +
+                                "Última actualización: " +
+                                new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()),
+                        "Información",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+
+        card.revalidate();
+        card.repaint();
+    }
+
+    /**
+     * Actualiza el panel de actividades pendientes
+     */
+    private void actualizarActividadesPendientesPanel() {
+        // Buscar el panel de actividades pendientes
+        Component[] components = inicioPanel.getComponents();
+
+        for (Component comp : components) {
+            if (comp instanceof JPanel) {
+                JPanel panel = (JPanel) comp;
+
+                // Buscar por el título "Actividades Pendientes y En Proceso"
+                Component[] childComponents = panel.getComponents();
+                for (int i = 0; i < childComponents.length; i++) {
+                    if (childComponents[i] instanceof JLabel) {
+                        JLabel label = (JLabel) childComponents[i];
+                        if (label.getText().contains("Actividades Pendientes y En Proceso")) {
+                            // Este es el panel correcto
+                            // Recrear el contenido del panel
+                            panel.removeAll();
+
+                            // Reconstruir el panel con datos actualizados
+                            JPanel nuevoPanelActividades = createActividadesPendientesPanel();
+
+                            // Reemplazar el panel existente
+                            inicioPanel.remove(panel);
+                            inicioPanel.add(nuevoPanelActividades, getComponentIndex(inicioPanel, panel));
+
+                            inicioPanel.revalidate();
+                            inicioPanel.repaint();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Obtiene el índice de un componente dentro de un contenedor
+     */
+    private int getComponentIndex(Container container, Component component) {
+        Component[] components = container.getComponents();
+        for (int i = 0; i < components.length; i++) {
+            if (components[i] == component) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -1886,6 +2138,29 @@ public class DashboardCoordUI extends JFrame {
         ));
         card.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
+        // Agregar listener para actualizar al hacer clic
+        card.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                // Efecto visual de clic
+                card.setBackground(new Color(240, 240, 240));
+                Timer timer = new Timer(200, e -> {
+                    card.setBackground(Color.WHITE);
+                });
+                timer.setRepeats(false);
+                timer.start();
+
+                // Mostrar mensaje informativo
+                JOptionPane.showMessageDialog(card,
+                        "Estadística: " + title + "\n" +
+                                "Valor actual: " + value + "\n" +
+                                "Última actualización: " +
+                                new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()),
+                        "Información",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+
         // Contenido de la tarjeta
         JPanel content = new JPanel(new BorderLayout());
         content.setOpaque(false);
@@ -1930,7 +2205,16 @@ public class DashboardCoordUI extends JFrame {
 
     private int obtenerCantidadActividadesProgramadas() {
         try {
-            return gestorActividades.obtenerActividadesPendientes().size();
+            List<Actividad> todas = gestorActividades.obtenerTodasActividades();
+            int contador = 0;
+
+            for (Actividad actividad : todas) {
+                String estado = determinarEstado(actividad);
+                if ("Pendiente".equals(estado) || "En proceso".equals(estado)) {
+                    contador++;
+                }
+            }
+            return contador;
         } catch (Exception e) {
             return 0;
         }
@@ -1963,16 +2247,7 @@ public class DashboardCoordUI extends JFrame {
                 "🏢",
                 "Crear nueva brigada comunitaria",
                 PRIMARY_BLUE,
-                e -> mostrarFormularioNuevaBrigada()
-        ));
-
-        // Acción 2: Convocar Urgencia (RF-09)
-        accionesPanel.add(createAccionRapida(
-                "Convocar Urgencia",
-                "🚨",
-                "Convocar voluntarios urgentes",
-                CARD_RED,
-                e -> convocarVoluntariosUrgentes()
+                e -> cambiarPanel("brigadas")
         ));
 
         // Acción 3: Planificar Actividad (RF-04)
@@ -2028,7 +2303,7 @@ public class DashboardCoordUI extends JFrame {
     }
 
     /**
-     * Crea el panel de actividades pendientes
+     * Crea el panel de actividades pendientes y en proceso con datos reales del sistema
      */
     private JPanel createActividadesPendientesPanel() {
         JPanel panel = new JPanel();
@@ -2040,66 +2315,250 @@ public class DashboardCoordUI extends JFrame {
                 new EmptyBorder(20, 20, 20, 20)
         ));
 
-        JLabel title = new JLabel("Actividades Pendientes de Confirmación");
+        JLabel title = new JLabel("Actividades Pendientes y En Proceso");
         title.setFont(new Font("Arial", Font.BOLD, 16));
         panel.add(title);
 
+        JLabel subtitle = new JLabel("Actividades por completar o en ejecución");
+        subtitle.setFont(new Font("Arial", Font.PLAIN, 11));
+        subtitle.setForeground(Color.GRAY);
+        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(subtitle);
+
         panel.add(Box.createVerticalStrut(15));
 
-        // Lista de actividades pendientes
-        String[][] actividades = {
-                {"Distribución Alimentos", "25 Nov 2025", "10 voluntarios pendientes"},
-                {"Limpieza Comunitaria", "28 Nov 2025", "5 voluntarios pendientes"},
-                {"Taller Primeros Auxilios", "30 Nov 2025", "8 voluntarios pendientes"}
-        };
+        // Obtener actividades pendientes y en proceso reales del sistema
+        List<Actividad> actividades = obtenerActividadesPendientesYEnProceso();
 
-        for (String[] actividad : actividades) {
-            panel.add(createItemActividadPendiente(actividad[0], actividad[1], actividad[2]));
-            panel.add(Box.createVerticalStrut(10));
+        if (actividades.isEmpty()) {
+            JLabel noActividadesLabel = new JLabel("No hay actividades pendientes o en proceso en este momento.");
+            noActividadesLabel.setFont(new Font("Arial", Font.ITALIC, 12));
+            noActividadesLabel.setForeground(Color.GRAY);
+            noActividadesLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+            panel.add(noActividadesLabel);
+        } else {
+            // Agrupar por estado
+            List<Actividad> pendientes = new ArrayList<>();
+            List<Actividad> enProceso = new ArrayList<>();
+
+            for (Actividad actividad : actividades) {
+                String estado = determinarEstado(actividad);
+                if ("Pendiente".equals(estado)) {
+                    pendientes.add(actividad);
+                } else if ("En proceso".equals(estado)) {
+                    enProceso.add(actividad);
+                }
+            }
+
+            // Mostrar primero "En proceso", luego "Pendientes"
+            if (!enProceso.isEmpty()) {
+                panel.add(createSubtitleLabel("En Proceso (" + enProceso.size() + ")"));
+                for (Actividad actividad : enProceso) {
+                    panel.add(createItemActividadConEstado(actividad, "En proceso"));
+                    panel.add(Box.createVerticalStrut(8));
+                }
+            }
+
+            if (!pendientes.isEmpty()) {
+                if (!enProceso.isEmpty()) {
+                    panel.add(Box.createVerticalStrut(10));
+                }
+                panel.add(createSubtitleLabel("Pendientes (" + pendientes.size() + ")"));
+                for (Actividad actividad : pendientes) {
+                    panel.add(createItemActividadConEstado(actividad, "Pendiente"));
+                    panel.add(Box.createVerticalStrut(8));
+                }
+            }
         }
+
+        // Botón para ir a la sección de actividades
+        JButton verTodasBtn = new JButton("Ver todas las actividades");
+        verTodasBtn.setFont(new Font("Arial", Font.PLAIN, 11));
+        verTodasBtn.setBackground(new Color(240, 240, 240));
+        verTodasBtn.setFocusPainted(false);
+        verTodasBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        verTodasBtn.addActionListener(e -> cambiarPanel("actividades"));
+        verTodasBtn.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+
+        panel.add(Box.createVerticalStrut(15));
+        panel.add(verTodasBtn);
 
         return panel;
     }
 
     /**
-     * Crea un item de actividad pendiente
+     * Determina el estado de una actividad usando el algoritmo
      */
-    private JPanel createItemActividadPendiente(String nombre, String fecha, String detalle) {
+    private String determinarEstado(Actividad actividad) {
+        Date ahora = new Date();
+
+        if (actividad.getFecha().after(ahora)) {
+            return "Pendiente";
+        } else if (actividad.getFecha().before(ahora) &&
+                (actividad.getResultados() == null || actividad.getResultados().isEmpty())) {
+            return "En proceso";
+        } else if (actividad.getResultados() != null && !actividad.getResultados().isEmpty()) {
+            return "Completada";
+        } else {
+            return "Planificada";
+        }
+    }
+
+    /**
+     * Obtiene las actividades pendientes y en proceso del sistema
+     */
+    private List<Actividad> obtenerActividadesPendientesYEnProceso() {
+        List<Actividad> actividadesFiltradas = new ArrayList<>();
+
+        try {
+            List<Actividad> todasActividades = gestorActividades.obtenerTodasActividades();
+
+            for (Actividad actividad : todasActividades) {
+                String estado = determinarEstado(actividad);
+
+                // Solo incluir Pendientes y En proceso
+                if ("Pendiente".equals(estado) || "En proceso".equals(estado)) {
+                    actividadesFiltradas.add(actividad);
+                }
+            }
+
+            // Ordenar: primero por estado (En proceso primero), luego por fecha
+            actividadesFiltradas.sort((a1, a2) -> {
+                String estado1 = determinarEstado(a1);
+                String estado2 = determinarEstado(a2);
+
+                // Prioridad: En proceso > Pendiente
+                if ("En proceso".equals(estado1) && "Pendiente".equals(estado2)) {
+                    return -1;
+                }
+                if ("Pendiente".equals(estado1) && "En proceso".equals(estado2)) {
+                    return 1;
+                }
+
+                // Mismo estado: ordenar por fecha (más cercana primero)
+                return a1.getFecha().compareTo(a2.getFecha());
+            });
+
+            // Limitar a un máximo razonable
+            if (actividadesFiltradas.size() > 8) {
+                actividadesFiltradas = actividadesFiltradas.subList(0, 8);
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error obteniendo actividades: " + e.getMessage());
+        }
+
+        return actividadesFiltradas;
+    }
+
+    /**
+     * Crea un subtítulo para agrupar actividades por estado
+     */
+    private JLabel createSubtitleLabel(String texto) {
+        JLabel label = new JLabel(texto);
+        label.setFont(new Font("Arial", Font.BOLD, 12));
+        label.setForeground(new Color(66, 66, 66));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        label.setBorder(new EmptyBorder(5, 0, 5, 0));
+        return label;
+    }
+
+    /**
+     * Crea un item de actividad con diseño específico según estado - VERSIÓN CON BOTÓN ASIGNAR
+     */
+    private JPanel createItemActividadConEstado(Actividad actividad, String estado) {
         JPanel item = new JPanel(new BorderLayout());
-        item.setBackground(new Color(245, 245, 245));
-        item.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        item.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
 
-        JPanel leftPanel = new JPanel(new BorderLayout());
-        leftPanel.setOpaque(false);
+        // Color de fondo según estado
+        if ("En proceso".equals(estado)) {
+            item.setBackground(new Color(255, 248, 225)); // Amarillo muy claro
+            item.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(255, 193, 7), 1),
+                    BorderFactory.createEmptyBorder(8, 10, 8, 10)
+            ));
+        } else { // Pendiente
+            item.setBackground(new Color(240, 248, 255)); // Azul muy claro
+        }
 
-        JLabel nombreLabel = new JLabel(nombre);
-        nombreLabel.setFont(new Font("Arial", Font.BOLD, 13));
-        leftPanel.add(nombreLabel, BorderLayout.NORTH);
+        // Panel izquierdo con información
+        JPanel infoPanel = new JPanel();
+        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+        infoPanel.setOpaque(false);
 
-        JLabel fechaLabel = new JLabel("Fecha: " + fecha);
-        fechaLabel.setFont(new Font("Arial", Font.PLAIN, 11));
-        fechaLabel.setForeground(Color.GRAY);
-        leftPanel.add(fechaLabel, BorderLayout.CENTER);
+        // Nombre y estado
+        JPanel nombrePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        nombrePanel.setOpaque(false);
 
-        JLabel detalleLabel = new JLabel(detalle);
-        detalleLabel.setFont(new Font("Arial", Font.PLAIN, 11));
-        detalleLabel.setForeground(Color.DARK_GRAY);
-        leftPanel.add(detalleLabel, BorderLayout.SOUTH);
+        JLabel nombreLabel = new JLabel(actividad.getNombre());
+        nombreLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        nombrePanel.add(nombreLabel);
 
-        item.add(leftPanel, BorderLayout.WEST);
+        JLabel estadoLabel = new JLabel(" [" + estado + "]");
+        estadoLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+        if ("En proceso".equals(estado)) {
+            estadoLabel.setForeground(new Color(218, 165, 32)); // Dorado
+            estadoLabel.setFont(new Font("Arial", Font.BOLD, 10));
+        } else {
+            estadoLabel.setForeground(new Color(100, 100, 100));
+        }
+        nombrePanel.add(estadoLabel);
 
-        JButton asignarBtn = new JButton("Asignar");
-        asignarBtn.setFont(new Font("Arial", Font.PLAIN, 11));
-        asignarBtn.setBackground(PRIMARY_BLUE);
-        asignarBtn.setForeground(Color.WHITE);
-        asignarBtn.setFocusPainted(false);
-        asignarBtn.addActionListener(e -> {
-            JOptionPane.showMessageDialog(this,
-                    "Asignando voluntarios a: " + nombre,
-                    "Asignación de Voluntarios", JOptionPane.INFORMATION_MESSAGE);
+        infoPanel.add(nombrePanel);
+
+        // Detalles
+        String fechaStr = new java.text.SimpleDateFormat("dd/MM/yyyy").format(actividad.getFecha());
+        String lugarStr = actividad.getLugar();
+        String brigadaStr = actividad.getBrigadaAsociada() != null ?
+                actividad.getBrigadaAsociada().getNombre() : "Sin brigada";
+
+        JLabel detallesLabel = new JLabel(String.format("%s | %s | %s", fechaStr, lugarStr, brigadaStr));
+        detallesLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+        detallesLabel.setForeground(Color.DARK_GRAY);
+        infoPanel.add(detallesLabel);
+
+        // Días restantes o transcurridos
+        Date ahora = new Date();
+        long diasDiferencia = (actividad.getFecha().getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24);
+
+        if ("Pendiente".equals(estado)) {
+            String diasInfo = diasDiferencia == 1 ? "1 día" : Math.abs(diasDiferencia) + " días";
+            JLabel diasLabel = new JLabel("Faltan " + diasInfo);
+            diasLabel.setFont(new Font("Arial", Font.PLAIN, 9));
+            diasLabel.setForeground(new Color(0, 100, 0));
+            infoPanel.add(diasLabel);
+        } else if ("En proceso".equals(estado)) {
+            String diasInfo = Math.abs(diasDiferencia) == 1 ? "1 día" : Math.abs(diasDiferencia) + " días";
+            JLabel diasLabel = new JLabel("En curso desde hace " + diasInfo);
+            diasLabel.setFont(new Font("Arial", Font.PLAIN, 9));
+            diasLabel.setForeground(new Color(139, 0, 0));
+            infoPanel.add(diasLabel);
+        }
+
+        item.add(infoPanel, BorderLayout.CENTER);
+
+        // Botón de acción - AHORA SIEMPRE ES "ASIGNAR"
+        JButton accionBtn = new JButton("Asignar");
+        accionBtn.setFont(new Font("Arial", Font.PLAIN, 10));
+        accionBtn.setFocusPainted(false);
+        accionBtn.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+
+        // Color según estado
+        if ("En proceso".equals(estado)) {
+            accionBtn.setBackground(new Color(156, 39, 176)); // Morado
+            accionBtn.setToolTipText("Asignar voluntarios y brigadas a esta actividad");
+        } else { // Pendiente
+            accionBtn.setBackground(PRIMARY_BLUE); // Azul
+            accionBtn.setToolTipText("Asignar voluntarios y brigadas a esta actividad");
+        }
+
+        accionBtn.setForeground(Color.WHITE);
+        accionBtn.addActionListener(e -> {
+            // Usar el nuevo diálogo mejorado para ambas situaciones
+            mostrarDialogoAsignarVoluntarios(actividad);
         });
 
-        item.add(asignarBtn, BorderLayout.EAST);
+        item.add(accionBtn, BorderLayout.EAST);
 
         return item;
     }
@@ -2216,35 +2675,34 @@ public class DashboardCoordUI extends JFrame {
         }
     }
 
-    /**
-     * Actualiza la tabla de brigadas
-     */
-    /**
-     * Actualiza la tabla de brigadas - VERSIÓN CORREGIDA
-     */
     private void actualizarTablaBrigadas() {
-        // Buscar el JScrollPane en el panel de brigadas
-        JScrollPane scrollPane = findScrollPaneInPanel(brigadasPanel);
+        SwingUtilities.invokeLater(() -> {
+            // Buscar el JScrollPane en el panel de brigadas
+            JScrollPane scrollPane = findScrollPaneInPanel(brigadasPanel);
 
-        if (scrollPane != null) {
-            Component view = scrollPane.getViewport().getView();
-            if (view instanceof JTable) {
-                JTable tabla = (JTable) view;
-                DefaultTableModel model = (DefaultTableModel) tabla.getModel();
-                cargarBrigadasEnTabla(model);
-                tabla.repaint();
+            if (scrollPane != null) {
+                Component view = scrollPane.getViewport().getView();
+                if (view instanceof JTable) {
+                    JTable tabla = (JTable) view;
+                    DefaultTableModel model = (DefaultTableModel) tabla.getModel();
+                    cargarBrigadasEnTabla(model);
+                    tabla.repaint();
+                    tabla.revalidate();
+                }
             }
-        }
+        });
     }
 
-    /**
-     * Encuentra el JScrollPane en un panel
-     */
     private JScrollPane findScrollPaneInPanel(JPanel panel) {
+        // Primero buscar directamente en los componentes
         for (Component comp : panel.getComponents()) {
             if (comp instanceof JScrollPane) {
                 return (JScrollPane) comp;
             }
+        }
+
+        // Si no se encuentra, buscar recursivamente en subpaneles
+        for (Component comp : panel.getComponents()) {
             if (comp instanceof JPanel) {
                 JScrollPane found = findScrollPaneInPanel((JPanel) comp);
                 if (found != null) {
@@ -2252,6 +2710,7 @@ public class DashboardCoordUI extends JFrame {
                 }
             }
         }
+
         return null;
     }
 
@@ -2353,17 +2812,31 @@ public class DashboardCoordUI extends JFrame {
     }
 
     /**
-     * Renderizador para botones en la tabla de actividades - MODIFICADO
+     * Renderizador para botones en la tabla de actividades - VERSIÓN CON BOTÓN ASIGNAR
      */
     class ActividadesButtonRenderer extends JPanel implements TableCellRenderer {
-        private JButton resultadosBtn; // Mantener solo resultados
+        private JButton asignarBtn; // Nuevo botón
+        private JButton resultadosBtn;
         private JButton editarBtn;
-        private JButton eliminarBtn; // Eliminar ahora funcionará
+        private JButton eliminarBtn;
 
         public ActividadesButtonRenderer() {
             setLayout(new FlowLayout(FlowLayout.CENTER, 3, 5));
             setOpaque(true);
-            setPreferredSize(new Dimension(180, 40)); // Reducido porque quitamos un botón
+            setPreferredSize(new Dimension(220, 40)); // Aumentado para 4 botones
+
+            // Botón Asignar (RF-05) - NUEVO
+            asignarBtn = new JButton("Asignar");
+            asignarBtn.setFont(new Font("Arial", Font.PLAIN, 10));
+            asignarBtn.setBackground(new Color(25, 118, 210)); // Azul primario
+            asignarBtn.setForeground(Color.WHITE);
+            asignarBtn.setFocusPainted(false);
+            asignarBtn.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+            asignarBtn.setPreferredSize(new Dimension(65, 25));
+            asignarBtn.setOpaque(true);
+            asignarBtn.setContentAreaFilled(true);
+            asignarBtn.setBorderPainted(true);
+            asignarBtn.setToolTipText("Asignar voluntarios y brigadas (RF-05)");
 
             // Botón Resultados (RF-07)
             resultadosBtn = new JButton("Resultados");
@@ -2391,7 +2864,7 @@ public class DashboardCoordUI extends JFrame {
             editarBtn.setBorderPainted(true);
             editarBtn.setToolTipText("Editar actividad");
 
-            // Botón Eliminar - MEJOR VISIBILIDAD
+            // Botón Eliminar
             eliminarBtn = new JButton("Eliminar");
             eliminarBtn.setFont(new Font("Arial", Font.PLAIN, 10));
             eliminarBtn.setBackground(new Color(244, 67, 54)); // Rojo
@@ -2404,7 +2877,8 @@ public class DashboardCoordUI extends JFrame {
             eliminarBtn.setBorderPainted(true);
             eliminarBtn.setToolTipText("Eliminar actividad");
 
-            // Agregar solo 3 botones (quitamos Asignar)
+            // Agregar 4 botones (incluyendo Asignar)
+            add(asignarBtn);
             add(resultadosBtn);
             add(editarBtn);
             add(eliminarBtn);
@@ -2424,12 +2898,14 @@ public class DashboardCoordUI extends JFrame {
             String estado = (String) table.getValueAt(row, 6);
 
             // Configurar estado de botones según el estado de la actividad
-            // Ya no hay botón de asignar
+            asignarBtn.setEnabled(!"Completada".equals(estado));
             resultadosBtn.setEnabled("En proceso".equals(estado) || "Completada".equals(estado));
             editarBtn.setEnabled(!"Completada".equals(estado));
-            eliminarBtn.setEnabled(!"En proceso".equals(estado) && !"Completada".equals(estado));
+            eliminarBtn.setEnabled(!estado.contains("Completada"));
 
             // Cambiar colores según estado
+            asignarBtn.setBackground(asignarBtn.isEnabled() ?
+                    new Color(25, 118, 210) : Color.LIGHT_GRAY);
             resultadosBtn.setBackground(resultadosBtn.isEnabled() ?
                     new Color(156, 39, 176) : Color.LIGHT_GRAY);
             editarBtn.setBackground(editarBtn.isEnabled() ?
@@ -2442,13 +2918,14 @@ public class DashboardCoordUI extends JFrame {
     }
 
     /**
-     * Editor para botones en la tabla de actividades - VERSIÓN MODIFICADA
+     * Editor para botones en la tabla de actividades - VERSIÓN CON BOTÓN ASIGNAR
      */
     class ActividadesButtonEditor extends AbstractCellEditor implements TableCellEditor {
         private JPanel panel;
-        private JButton resultadosBtn; // Mantener solo resultados
+        private JButton asignarBtn; // Nuevo botón
+        private JButton resultadosBtn;
         private JButton editarBtn;
-        private JButton eliminarBtn; // Eliminar ahora funcionará
+        private JButton eliminarBtn;
         private JTable tabla;
         private int currentRow;
         private Actividad actividadActual;
@@ -2458,7 +2935,20 @@ public class DashboardCoordUI extends JFrame {
 
             panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 3, 5));
             panel.setOpaque(true);
-            panel.setPreferredSize(new Dimension(180, 40)); // Reducido
+            panel.setPreferredSize(new Dimension(220, 40)); // Aumentado
+
+            // Botón Asignar (RF-05) - NUEVO
+            asignarBtn = new JButton("Asignar");
+            asignarBtn.setFont(new Font("Arial", Font.PLAIN, 10));
+            asignarBtn.setBackground(new Color(25, 118, 210));
+            asignarBtn.setForeground(Color.WHITE);
+            asignarBtn.setFocusPainted(false);
+            asignarBtn.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+            asignarBtn.setPreferredSize(new Dimension(65, 25));
+            asignarBtn.addActionListener(e -> {
+                asignarVoluntariosYBrigadasDesdeTabla();
+                fireEditingStopped();
+            });
 
             // Botón Resultados (RF-07)
             resultadosBtn = new JButton("Resultados");
@@ -2486,7 +2976,7 @@ public class DashboardCoordUI extends JFrame {
                 fireEditingStopped();
             });
 
-            // Botón Eliminar - FUNCIONAL
+            // Botón Eliminar
             eliminarBtn = new JButton("Eliminar");
             eliminarBtn.setFont(new Font("Arial", Font.PLAIN, 10));
             eliminarBtn.setBackground(new Color(244, 67, 54));
@@ -2499,7 +2989,8 @@ public class DashboardCoordUI extends JFrame {
                 fireEditingStopped();
             });
 
-            // Agregar solo 3 botones (quitamos Asignar)
+            // Agregar 4 botones (incluyendo Asignar)
+            panel.add(asignarBtn);
             panel.add(resultadosBtn);
             panel.add(editarBtn);
             panel.add(eliminarBtn);
@@ -2524,10 +3015,10 @@ public class DashboardCoordUI extends JFrame {
             if (actividadActual != null) {
                 String estado = (String) tabla.getValueAt(currentRow, 6);
 
-                // CORRECCIÓN: Permitir eliminar en todos los estados excepto "Completada"
+                asignarBtn.setEnabled(!"Completada".equals(estado));
                 resultadosBtn.setEnabled("En proceso".equals(estado) || "Completada".equals(estado));
                 editarBtn.setEnabled(!"Completada".equals(estado));
-                eliminarBtn.setEnabled(!estado.contains("Completada")); // Cambio aquí
+                eliminarBtn.setEnabled(!estado.contains("Completada"));
             }
 
             return panel;
@@ -2535,9 +3026,22 @@ public class DashboardCoordUI extends JFrame {
 
         @Override
         public Object getCellEditorValue() {
-            return "Resultados|Editar|Eliminar";
+            return "Asignar|Resultados|Editar|Eliminar";
         }
 
+        private void asignarVoluntariosYBrigadasDesdeTabla() {
+            if (actividadActual == null) {
+                JOptionPane.showMessageDialog(tabla,
+                        "No se pudo obtener la información de la actividad",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Usar el nuevo método mejorado
+            mostrarDialogoAsignarVoluntarios(actividadActual);
+        }
+
+        // Mantener los otros métodos existentes...
         private void registrarResultadosActividad() {
             if (actividadActual == null) {
                 JOptionPane.showMessageDialog(tabla,
@@ -2574,13 +3078,9 @@ public class DashboardCoordUI extends JFrame {
             );
 
             if (confirm == JOptionPane.YES_OPTION) {
-                // Detener la edición ANTES de eliminar
-                fireEditingStopped(); // <-- Añadir esta línea aquí
-
-                // Luego eliminar
+                fireEditingStopped();
                 eliminarActividad(id, nombre);
             } else {
-                // Si cancelan, también detener la edición
                 fireEditingStopped();
             }
         }
@@ -2594,21 +3094,20 @@ public class DashboardCoordUI extends JFrame {
             }
         }
     }
-
     /**
-     * RF-05: Asignar voluntarios a actividad
+     * RF-05: Asignar voluntarios y brigadas a actividad - VERSIÓN CON ESTRUCTURA REAL
      */
     private void mostrarDialogoAsignarVoluntarios(Actividad actividad) {
-        JDialog dialog = new JDialog(this, "Asignar Voluntarios a Actividad: " + actividad.getNombre(), true);
+        JDialog dialog = new JDialog(this, "Gestionar Asignaciones: " + actividad.getNombre(), true);
         dialog.setLayout(new BorderLayout());
-        dialog.setSize(700, 500);
+        dialog.setSize(700, 600);
         dialog.setLocationRelativeTo(this);
 
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
         // Información de la actividad
-        JPanel infoPanel = new JPanel(new GridLayout(3, 2, 10, 5));
+        JPanel infoPanel = new JPanel(new GridLayout(4, 2, 10, 5));
         infoPanel.setBorder(BorderFactory.createTitledBorder("Información de la Actividad"));
 
         infoPanel.add(new JLabel("Actividad:"));
@@ -2617,151 +3116,641 @@ public class DashboardCoordUI extends JFrame {
         infoPanel.add(new JLabel(new java.text.SimpleDateFormat("dd/MM/yyyy").format(actividad.getFecha())));
         infoPanel.add(new JLabel("Lugar:"));
         infoPanel.add(new JLabel(actividad.getLugar()));
+        infoPanel.add(new JLabel("Brigada asignada:"));
+        infoPanel.add(new JLabel(actividad.getBrigadaAsociada() != null ?
+                actividad.getBrigadaAsociada().getNombre() : "Ninguna"));
 
         mainPanel.add(infoPanel, BorderLayout.NORTH);
 
-        // Lista de voluntarios disponibles
-        JPanel voluntariosPanel = new JPanel(new BorderLayout());
-        voluntariosPanel.setBorder(BorderFactory.createTitledBorder("Voluntarios Disponibles"));
+        // Panel con pestañas
+        JTabbedPane tabbedPane = new JTabbedPane();
 
+        // Pestaña 1: Voluntarios
         DefaultListModel<String> voluntariosModel = new DefaultListModel<>();
         JList<String> voluntariosList = new JList<>(voluntariosModel);
 
-        try {
-            // Obtener voluntarios de la brigada asociada
-            Brigada brigada = actividad.getBrigadaAsociada();
-            List<Voluntario> voluntariosDisponibles = new ArrayList<>();
+        // Pestaña 2: Brigadas
+        DefaultListModel<String> brigadasModel = new DefaultListModel<>();
+        JList<String> brigadasList = new JList<>(brigadasModel);
 
-            if (brigada != null) {
-                // Obtener voluntarios de esta brigada
-                List<Voluntario> voluntariosBrigada = gestorGeneral.getGestorBrigadas()
-                        .obtenerVoluntariosDeBrigada(brigada.getId());
-                voluntariosDisponibles.addAll(voluntariosBrigada);
-            } else {
-                // Si no hay brigada, mostrar todos los voluntarios
-                voluntariosDisponibles = gestorGeneral.getGestorUsuarios().obtenerVoluntarios();
-            }
+        // Cargar datos iniciales
+        cargarVoluntariosEnLista(voluntariosModel, actividad);
+        cargarBrigadasEnLista(brigadasModel, actividad);
 
-            // Obtener voluntarios ya asignados a esta actividad
-            List<Voluntario> voluntariosAsignados = gestorActividades.obtenerVoluntariosAsignados(actividad.getId());
+        // Crear las pestañas
+        JPanel voluntariosTab = crearPanelLista(voluntariosList, "Voluntarios disponibles");
+        JPanel brigadasTab = crearPanelLista(brigadasList, "Brigadas disponibles");
 
-            for (Voluntario vol : voluntariosDisponibles) {
-                // Verificar si ya está asignado
-                boolean yaAsignado = voluntariosAsignados.stream()
-                        .anyMatch(v -> v.getId().equals(vol.getId()));
+        tabbedPane.addTab("👥 Voluntarios", voluntariosTab);
+        tabbedPane.addTab("🏢 Brigadas", brigadasTab);
 
-                String item = vol.getNombre() + " - " + vol.getEmail();
-                if (yaAsignado) {
-                    item += " (Ya asignado)";
-                }
-                voluntariosModel.addElement(item);
-            }
-        } catch (Exception e) {
-            voluntariosModel.addElement("Error cargando voluntarios: " + e.getMessage());
-        }
-
-        voluntariosPanel.add(new JScrollPane(voluntariosList), BorderLayout.CENTER);
-
-        // Panel de selección múltiple
-        JPanel seleccionPanel = new JPanel(new BorderLayout());
-        DefaultListModel<String> seleccionadosModel = new DefaultListModel<>();
-        JList<String> seleccionadosList = new JList<>(seleccionadosModel);
-
-        JPanel seleccionadosContainer = new JPanel(new BorderLayout());
-        seleccionadosContainer.setBorder(BorderFactory.createTitledBorder("Voluntarios Seleccionados"));
-        seleccionadosContainer.add(new JScrollPane(seleccionadosList), BorderLayout.CENTER);
-
-        seleccionPanel.add(seleccionadosContainer, BorderLayout.CENTER);
-
-        // Panel central con ambas listas
-        JPanel listasPanel = new JPanel(new GridLayout(1, 2, 10, 0));
-        listasPanel.add(voluntariosPanel);
-        listasPanel.add(seleccionPanel);
-
-        mainPanel.add(listasPanel, BorderLayout.CENTER);
+        mainPanel.add(tabbedPane, BorderLayout.CENTER);
 
         // Panel de botones de acción
-        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
 
-        JButton agregarBtn = new JButton("Agregar →");
+        JButton agregarBtn = new JButton("➕ Agregar seleccionados");
+        agregarBtn.setBackground(new Color(76, 175, 80));
+        agregarBtn.setForeground(Color.WHITE);
         agregarBtn.addActionListener(e -> {
-            int[] selectedIndices = voluntariosList.getSelectedIndices();
-            for (int i = selectedIndices.length - 1; i >= 0; i--) {
-                String selected = voluntariosModel.getElementAt(selectedIndices[i]);
-                if (!selected.contains("(Ya asignado)")) {
-                    seleccionadosModel.addElement(selected);
-                    voluntariosModel.remove(selectedIndices[i]);
-                }
-            }
+            procesarAgregar(dialog, actividad, tabbedPane, voluntariosList, brigadasList,
+                    voluntariosModel, brigadasModel);
         });
 
-        JButton quitarBtn = new JButton("← Quitar");
+        JButton quitarBtn = new JButton("➖ Quitar seleccionados");
+        quitarBtn.setBackground(new Color(244, 67, 54));
+        quitarBtn.setForeground(Color.WHITE);
         quitarBtn.addActionListener(e -> {
-            int[] selectedIndices = seleccionadosList.getSelectedIndices();
-            for (int i = selectedIndices.length - 1; i >= 0; i--) {
-                String selected = seleccionadosModel.getElementAt(selectedIndices[i]);
-                voluntariosModel.addElement(selected);
-                seleccionadosModel.remove(selectedIndices[i]);
-            }
+            procesarQuitar(dialog, actividad, tabbedPane, voluntariosList, brigadasList,
+                    voluntariosModel, brigadasModel);
         });
 
         actionPanel.add(agregarBtn);
+        actionPanel.add(Box.createHorizontalStrut(20));
         actionPanel.add(quitarBtn);
 
         mainPanel.add(actionPanel, BorderLayout.SOUTH);
 
-        // Panel inferior: botones guardar/cancelar
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton cancelarBtn = new JButton("Cancelar");
-        JButton guardarBtn = new JButton("Guardar Asignación");
+        // Panel inferior
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton cerrarBtn = new JButton("Cerrar");
+        cerrarBtn.addActionListener(e -> dialog.dispose());
 
-        cancelarBtn.addActionListener(e -> dialog.dispose());
+        bottomPanel.add(cerrarBtn);
 
-        guardarBtn.addActionListener(e -> {
-            try {
-                // Obtener IDs de voluntarios seleccionados
-                List<String> voluntariosIds = new ArrayList<>();
+        dialog.add(mainPanel, BorderLayout.CENTER);
+        dialog.add(bottomPanel, BorderLayout.SOUTH);
+        dialog.setVisible(true);
+    }
 
-                for (int i = 0; i < seleccionadosModel.size(); i++) {
-                    String item = seleccionadosModel.getElementAt(i);
-                    // Extraer el email del voluntario
-                    String[] parts = item.split(" - ");
-                    if (parts.length > 1) {
-                        String email = parts[1];
-                        // Buscar voluntario por email
-                        Voluntario vol = gestorGeneral.getGestorUsuarios().buscarVoluntarioPorEmail(email);
-                        if (vol != null) {
-                            voluntariosIds.add(vol.getId());
-                        }
+    /**
+     * Procesa la adición de elementos seleccionados
+     */
+    private void procesarAgregar(JDialog dialog, Actividad actividad, JTabbedPane tabbedPane,
+                                 JList<String> voluntariosList, JList<String> brigadasList,
+                                 DefaultListModel<String> voluntariosModel,
+                                 DefaultListModel<String> brigadasModel) {
+
+        int tabIndex = tabbedPane.getSelectedIndex();
+
+        if (tabIndex == 0) { // Voluntarios
+            int[] indices = voluntariosList.getSelectedIndices();
+            if (indices.length == 0) {
+                JOptionPane.showMessageDialog(dialog, "Seleccione voluntarios", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            List<String> nuevosVoluntariosIds = new ArrayList<>();
+            for (int index : indices) {
+                String item = voluntariosModel.getElementAt(index);
+                if (!item.contains("(Ya asignado)")) {
+                    // Extraer email del voluntario
+                    String email = item.split(" - ")[1];
+                    if (item.contains("(Ya asignado)")) {
+                        email = email.replace(" (Ya asignado)", "");
+                    }
+
+                    Voluntario vol = gestorGeneral.getGestorUsuarios().buscarVoluntarioPorEmail(email.trim());
+                    if (vol != null) {
+                        nuevosVoluntariosIds.add(vol.getId());
+                    }
+                }
+            }
+
+            if (!nuevosVoluntariosIds.isEmpty()) {
+                // Obtener voluntarios actuales
+                List<String> voluntariosActuales = obtenerVoluntariosAsignadosIds(actividad.getId());
+
+                // Agregar nuevos sin duplicar
+                List<String> todosVoluntarios = new ArrayList<>(voluntariosActuales);
+                for (String nuevoId : nuevosVoluntariosIds) {
+                    if (!todosVoluntarios.contains(nuevoId)) {
+                        todosVoluntarios.add(nuevoId);
                     }
                 }
 
-                // Asignar voluntarios a la actividad
-                gestorActividades.asignarVoluntariosAActividad(actividad.getId(), voluntariosIds);
+                // Actualizar en la actividad
+                if (asignarVoluntariosActividad(actividad.getId(), todosVoluntarios)) {
+                    cargarVoluntariosEnLista(voluntariosModel, actividad);
+                    JOptionPane.showMessageDialog(dialog,
+                            "Se agregaron " + nuevosVoluntariosIds.size() + " voluntarios",
+                            "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
 
+        } else if (tabIndex == 1) { // Brigadas
+            int[] indices = brigadasList.getSelectedIndices();
+            if (indices.length == 0) {
+                JOptionPane.showMessageDialog(dialog, "Seleccione una brigada", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            if (indices.length > 1) {
+                JOptionPane.showMessageDialog(dialog, "Solo puede seleccionar una brigada", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            String item = brigadasModel.getElementAt(indices[0]);
+            if (!item.contains("(Ya asignada)")) {
+                // Extraer nombre de la brigada
+                String brigadaNombre = item.split(" - ")[0];
+
+                try {
+                    // Buscar la brigada
+                    Brigada brigada;
+                    brigada = gestorGeneral.getGestorBrigadas().buscarBrigadaPorNombre(brigadaNombre);
+                    if (brigada != null) {
+                        // Confirmar
+                        int confirm = JOptionPane.showConfirmDialog(dialog,
+                                "¿Asignar brigada '" + brigada.getNombre() + "'?\n" +
+                                        "Se asignarán automáticamente sus " + brigada.getCantidadVoluntarios() + " voluntarios.",
+                                "Confirmar", JOptionPane.YES_NO_OPTION);
+
+                        if (confirm == JOptionPane.YES_OPTION) {
+                            // Asignar brigada a la actividad
+                            actividad.setBrigadaAsociada(brigada);
+                            gestorActividades.actualizarActividad(actividad);
+
+                            // Obtener voluntarios de la brigada
+                            List<Voluntario> voluntariosBrigada = gestorGeneral.getGestorBrigadas()
+                                    .obtenerVoluntariosDeBrigada(brigada.getId());
+
+                            List<String> voluntariosBrigadaIds = new ArrayList<>();
+                            for (Voluntario vol : voluntariosBrigada) {
+                                voluntariosBrigadaIds.add(vol.getId());
+                            }
+
+                            // Asignar voluntarios de la brigada
+                            asignarVoluntariosActividad(actividad.getId(), voluntariosBrigadaIds);
+
+                            // Actualizar listas
+                            cargarVoluntariosEnLista(voluntariosModel, actividad);
+                            cargarBrigadasEnLista(brigadasModel, actividad);
+
+                            JOptionPane.showMessageDialog(dialog,
+                                    "Brigada asignada exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(dialog, "Error: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }
+    }
+
+    /**
+     * Procesa la eliminación de elementos seleccionados
+     */
+    private void procesarQuitar(JDialog dialog, Actividad actividad, JTabbedPane tabbedPane,
+                                JList<String> voluntariosList, JList<String> brigadasList,
+                                DefaultListModel<String> voluntariosModel,
+                                DefaultListModel<String> brigadasModel) {
+
+        int tabIndex = tabbedPane.getSelectedIndex();
+
+        if (tabIndex == 0) { // Voluntarios
+            int[] indices = voluntariosList.getSelectedIndices();
+            if (indices.length == 0) {
+                JOptionPane.showMessageDialog(dialog, "Seleccione voluntarios", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            List<String> voluntariosAQuitar = new ArrayList<>();
+            for (int index : indices) {
+                String item = voluntariosModel.getElementAt(index);
+                if (item.contains("(Ya asignado)")) {
+                    // Extraer email del voluntario
+                    String email = item.split(" - ")[1].replace(" (Ya asignado)", "").trim();
+                    Voluntario vol = gestorGeneral.getGestorUsuarios().buscarVoluntarioPorEmail(email);
+                    if (vol != null) {
+                        voluntariosAQuitar.add(vol.getId());
+                    }
+                }
+            }
+
+            if (!voluntariosAQuitar.isEmpty()) {
+                int confirm = JOptionPane.showConfirmDialog(dialog,
+                        "¿Quitar " + voluntariosAQuitar.size() + " voluntario(s)?",
+                        "Confirmar", JOptionPane.YES_NO_OPTION);
+
+                if (confirm == JOptionPane.YES_OPTION) {
+                    // Obtener voluntarios actuales
+                    List<String> voluntariosActuales = obtenerVoluntariosAsignadosIds(actividad.getId());
+
+                    // Remover los seleccionados
+                    voluntariosActuales.removeAll(voluntariosAQuitar);
+
+                    // Actualizar en la actividad
+                    if (asignarVoluntariosActividad(actividad.getId(), voluntariosActuales)) {
+                        cargarVoluntariosEnLista(voluntariosModel, actividad);
+                        JOptionPane.showMessageDialog(dialog,
+                                "Voluntarios quitados exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+            }
+
+        } else if (tabIndex == 1) { // Brigadas
+            int[] indices = brigadasList.getSelectedIndices();
+            if (indices.length == 0) {
+                JOptionPane.showMessageDialog(dialog, "Seleccione una brigada", "Aviso", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            String item = brigadasModel.getElementAt(indices[0]);
+            if (item.contains("(Ya asignada)")) {
+                int confirm = JOptionPane.showConfirmDialog(dialog,
+                        "¿Quitar la brigada asignada?\n" +
+                                "Esto también quitará a todos sus voluntarios de la actividad.",
+                        "Confirmar", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+                if (confirm == JOptionPane.YES_OPTION) {
+                    try {
+                        // Quitar brigada
+                        actividad.setBrigadaAsociada(null);
+                        gestorActividades.actualizarActividad(actividad);
+
+                        // Actualizar listas
+                        cargarBrigadasEnLista(brigadasModel, actividad);
+
+                        JOptionPane.showMessageDialog(dialog,
+                                "Brigada quitada exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+
+                    } catch (Exception e) {
+                        JOptionPane.showMessageDialog(dialog, "Error: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Crea un panel con una lista
+     */
+    private JPanel crearPanelLista(JList<String> lista, String titulo) {
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JLabel tituloLabel = new JLabel(titulo);
+        tituloLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        panel.add(tituloLabel, BorderLayout.NORTH);
+
+        JScrollPane scrollPane = new JScrollPane(lista);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    /**
+     * Carga voluntarios en la lista
+     */
+    private void cargarVoluntariosEnLista(DefaultListModel<String> modelo, Actividad actividad) {
+        modelo.clear();
+        try {
+            List<Voluntario> todosVoluntarios = gestorGeneral.getGestorUsuarios().obtenerVoluntarios();
+            List<String> voluntariosAsignadosIds = obtenerVoluntariosAsignadosIds(actividad.getId());
+
+            for (Voluntario vol : todosVoluntarios) {
+                boolean yaAsignado = voluntariosAsignadosIds.contains(vol.getId());
+                String estado = yaAsignado ? " (Ya asignado)" : "";
+                modelo.addElement(vol.getNombre() + " - " + vol.getEmail() + estado);
+            }
+        } catch (Exception e) {
+            modelo.addElement("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Carga brigadas en la lista
+     */
+    private void cargarBrigadasEnLista(DefaultListModel<String> modelo, Actividad actividad) {
+        modelo.clear();
+        try {
+            List<Brigada> todasBrigadas = gestorGeneral.getGestorBrigadas().obtenerTodasBrigadas();
+            Brigada brigadaActual = actividad.getBrigadaAsociada();
+
+            for (Brigada brigada : todasBrigadas) {
+                boolean yaAsignada = (brigadaActual != null && brigadaActual.getId().equals(brigada.getId()));
+                String estado = yaAsignada ? " (Ya asignada)" : "";
+                modelo.addElement(brigada.getNombre() + " - " + brigada.getTipo() +
+                        " (" + brigada.getCantidadVoluntarios() + " voluntarios)" + estado);
+            }
+        } catch (Exception e) {
+            modelo.addElement("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Procesa la adición de elementos seleccionados
+     */
+    private void procesarAgregarSeleccionados(JDialog dialog, Actividad actividad, JTabbedPane tabbedPane,
+                                              JList<String> voluntariosList, JList<String> brigadasList) {
+
+        int selectedTab = tabbedPane.getSelectedIndex();
+
+        if (selectedTab == 0) { // Pestaña de Voluntarios
+            int[] selectedIndices = voluntariosList.getSelectedIndices();
+            if (selectedIndices.length == 0) {
                 JOptionPane.showMessageDialog(dialog,
-                        "Se asignaron " + voluntariosIds.size() + " voluntarios a la actividad",
-                        "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                        "Por favor seleccione al menos un voluntario para agregar",
+                        "Selección requerida", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
 
-                dialog.dispose();
-                actualizarTablaActividades();
+            try {
+                List<String> voluntariosIds = new ArrayList<>();
 
-            } catch (Exception ex) {
+                for (int index : selectedIndices) {
+                    String selected = voluntariosList.getModel().getElementAt(index);
+
+                    // No permitir agregar voluntarios ya asignados
+                    if (selected.contains("(Ya asignado)")) {
+                        String nombreVoluntario = selected.split(" - ")[0];
+                        JOptionPane.showMessageDialog(dialog,
+                                "El voluntario " + nombreVoluntario + " ya está asignado",
+                                "Información", JOptionPane.INFORMATION_MESSAGE);
+                        continue;
+                    }
+
+                    // Extraer email y buscar voluntario
+                    String email = selected.split(" - ")[1];
+                    Voluntario vol = gestorGeneral.getGestorUsuarios().buscarVoluntarioPorEmail(email);
+                    if (vol != null) {
+                        voluntariosIds.add(vol.getId());
+                    }
+                }
+
+                if (!voluntariosIds.isEmpty()) {
+                    // Agregar voluntarios a la actividad
+                    List<Voluntario> voluntariosActuales = gestorActividades.obtenerVoluntariosAsignados(actividad.getId());
+                    List<String> nuevosIds = new ArrayList<>();
+
+                    for (Voluntario vol : voluntariosActuales) {
+                        nuevosIds.add(vol.getId());
+                    }
+
+                    // Agregar los nuevos IDs sin duplicados
+                    for (String id : voluntariosIds) {
+                        if (!nuevosIds.contains(id)) {
+                            nuevosIds.add(id);
+                        }
+                    }
+
+                    gestorActividades.asignarVoluntariosAActividad(actividad.getId(), nuevosIds);
+
+                    JOptionPane.showMessageDialog(dialog,
+                            "Se agregaron " + voluntariosIds.size() + " voluntario(s) a la actividad",
+                            "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                }
+
+            } catch (Exception e) {
                 JOptionPane.showMessageDialog(dialog,
-                        "Error al asignar voluntarios: " + ex.getMessage(),
+                        "Error al agregar voluntarios: " + e.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
             }
-        });
 
-        guardarBtn.setBackground(PRIMARY_BLUE);
-        guardarBtn.setForeground(Color.WHITE);
+        } else if (selectedTab == 1) { // Pestaña de Brigadas
+            int[] selectedIndices = brigadasList.getSelectedIndices();
+            if (selectedIndices.length == 0) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Por favor seleccione una brigada para agregar",
+                        "Selección requerida", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
 
-        buttonPanel.add(cancelarBtn);
-        buttonPanel.add(guardarBtn);
+            if (selectedIndices.length > 1) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Solo puede seleccionar una brigada a la vez",
+                        "Selección múltiple", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
 
-        dialog.add(mainPanel, BorderLayout.CENTER);
-        dialog.add(buttonPanel, BorderLayout.SOUTH);
-        dialog.setVisible(true);
+            try {
+                String selected = brigadasList.getModel().getElementAt(selectedIndices[0]);
+
+                // Verificar si ya está asignada
+                if (selected.contains("(Ya asignada)")) {
+                    JOptionPane.showMessageDialog(dialog,
+                            "Esta brigada ya está asignada a la actividad",
+                            "Información", JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+
+                // Extraer nombre de brigada
+                String brigadaNombre = selected.split(" \\(")[0];
+
+                // Buscar brigada por nombre
+                List<Brigada> brigadas = gestorGeneral.getGestorBrigadas().obtenerTodasBrigadas();
+                Brigada brigadaSeleccionada = null;
+
+                for (Brigada brigada : brigadas) {
+                    if (brigada.getNombre().equals(brigadaNombre)) {
+                        brigadaSeleccionada = brigada;
+                        break;
+                    }
+                }
+
+                if (brigadaSeleccionada != null) {
+                    // Confirmar asignación de brigada
+                    int confirm = JOptionPane.showConfirmDialog(dialog,
+                            "¿Desea asignar la brigada '" + brigadaSeleccionada.getNombre() + "'?\n" +
+                                    "Esto agregará automáticamente a sus " +
+                                    brigadaSeleccionada.getCantidadVoluntarios() + " voluntarios.",
+                            "Confirmar asignación de brigada",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.QUESTION_MESSAGE);
+
+                    if (confirm == JOptionPane.YES_OPTION) {
+                        // Asignar brigada
+                        actividad.setBrigadaAsociada(brigadaSeleccionada);
+
+                        // Agregar todos los voluntarios de la brigada
+                        List<Voluntario> voluntariosBrigada = gestorGeneral.getGestorBrigadas()
+                                .obtenerVoluntariosDeBrigada(brigadaSeleccionada.getId());
+
+                        List<String> voluntariosIds = new ArrayList<>();
+                        for (Voluntario vol : voluntariosBrigada) {
+                            voluntariosIds.add(vol.getId());
+                        }
+
+                        gestorActividades.asignarVoluntariosAActividad(actividad.getId(), voluntariosIds);
+
+                        JOptionPane.showMessageDialog(dialog,
+                                "Brigada '" + brigadaSeleccionada.getNombre() + "' asignada exitosamente\n" +
+                                        "Se agregaron " + voluntariosIds.size() + " voluntarios de la brigada",
+                                "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Error al agregar brigada: " + e.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    /**
+     * Procesa la eliminación de elementos seleccionados
+     */
+    private void procesarQuitarSeleccionados(JDialog dialog, Actividad actividad, JTabbedPane tabbedPane,
+                                             JList<String> voluntariosList, JList<String> brigadasList) {
+
+        int selectedTab = tabbedPane.getSelectedIndex();
+
+        if (selectedTab == 0) { // Pestaña de Voluntarios
+            int[] selectedIndices = voluntariosList.getSelectedIndices();
+            if (selectedIndices.length == 0) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Por favor seleccione al menos un voluntario para quitar",
+                        "Selección requerida", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            try {
+                List<String> voluntariosAQuitar = new ArrayList<>();
+                List<String> nombresVoluntarios = new ArrayList<>();
+
+                for (int index : selectedIndices) {
+                    String selected = voluntariosList.getModel().getElementAt(index);
+
+                    // Solo se pueden quitar voluntarios que ya están asignados
+                    if (!selected.contains("(Ya asignado)")) {
+                        String nombreVoluntario = selected.split(" - ")[0];
+                        JOptionPane.showMessageDialog(dialog,
+                                "El voluntario " + nombreVoluntario + " no está asignado",
+                                "Información", JOptionPane.INFORMATION_MESSAGE);
+                        continue;
+                    }
+
+                    // Extraer email y buscar voluntario
+                    String email = selected.split(" - ")[1].replace(" (Ya asignado)", "").trim();
+                    Voluntario vol = gestorGeneral.getGestorUsuarios().buscarVoluntarioPorEmail(email);
+                    if (vol != null) {
+                        voluntariosAQuitar.add(vol.getId());
+                        nombresVoluntarios.add(vol.getNombre());
+                    }
+                }
+
+                if (!voluntariosAQuitar.isEmpty()) {
+                    // Confirmar eliminación
+                    int confirm = JOptionPane.showConfirmDialog(dialog,
+                            "¿Está seguro de quitar " + voluntariosAQuitar.size() +
+                                    " voluntario(s) de la actividad?\n" +
+                                    String.join(", ", nombresVoluntarios),
+                            "Confirmar eliminación",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE);
+
+                    if (confirm == JOptionPane.YES_OPTION) {
+                        // Obtener voluntarios actuales
+                        List<Voluntario> voluntariosActuales = gestorActividades.obtenerVoluntariosAsignados(actividad.getId());
+                        List<String> nuevosIds = new ArrayList<>();
+
+                        for (Voluntario vol : voluntariosActuales) {
+                            if (!voluntariosAQuitar.contains(vol.getId())) {
+                                nuevosIds.add(vol.getId());
+                            }
+                        }
+
+                        gestorActividades.asignarVoluntariosAActividad(actividad.getId(), nuevosIds);
+
+                        JOptionPane.showMessageDialog(dialog,
+                                "Se quitaron " + voluntariosAQuitar.size() + " voluntario(s) de la actividad",
+                                "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Error al quitar voluntarios: " + e.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+
+        } else if (selectedTab == 1) { // Pestaña de Brigadas
+            int[] selectedIndices = brigadasList.getSelectedIndices();
+            if (selectedIndices.length == 0) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Por favor seleccione una brigada para quitar",
+                        "Selección requerida", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            try {
+                String selected = brigadasList.getModel().getElementAt(selectedIndices[0]);
+
+                // Solo se puede quitar una brigada que ya está asignada
+                if (!selected.contains("(Ya asignada)")) {
+                    JOptionPane.showMessageDialog(dialog,
+                            "Esta brigada no está asignada a la actividad",
+                            "Información", JOptionPane.INFORMATION_MESSAGE);
+                    return;
+                }
+
+                // Extraer nombre de brigada
+                String brigadaNombre = selected.split(" \\(")[0];
+
+                // Buscar brigada actual
+                Brigada brigadaActual = actividad.getBrigadaAsociada();
+
+                if (brigadaActual != null && brigadaActual.getNombre().equals(brigadaNombre)) {
+                    // Confirmar quitar brigada
+                    int confirm = JOptionPane.showConfirmDialog(dialog,
+                            "¿Está seguro de quitar la brigada '" + brigadaActual.getNombre() + "'?\n" +
+                                    "Esto quitará a todos los voluntarios que participan por esta brigada.",
+                            "Confirmar quitar brigada",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE);
+
+                    if (confirm == JOptionPane.YES_OPTION) {
+                        // Quitar brigada
+                        actividad.setBrigadaAsociada(null);
+
+                        JOptionPane.showMessageDialog(dialog,
+                                "Brigada '" + brigadaNombre + "' quitada exitosamente",
+                                "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                }
+
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Error al quitar brigada: " + e.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    /**
+     * Guarda todos los cambios realizados
+     */
+    private void guardarCambios(JDialog dialog, Actividad actividad) {
+        try {
+            // Actualizar la actividad en el sistema
+            gestorActividades.actualizarActividad(actividad);
+
+            JOptionPane.showMessageDialog(dialog,
+                    "Todos los cambios han sido guardados exitosamente",
+                    "Cambios guardados", JOptionPane.INFORMATION_MESSAGE);
+
+            dialog.dispose();
+            actualizarTablaActividades();
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(dialog,
+                    "Error al guardar cambios: " + e.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Obtiene voluntarios asignados a una actividad
+     */
+    private List<Voluntario> obtenerVoluntariosAsignadosAActividad(String actividadId) {
+        try {
+            return gestorActividades.obtenerVoluntariosAsignados(actividadId);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
     }
 
     /**
@@ -2808,14 +3797,6 @@ public class DashboardCoordUI extends JFrame {
 
         row++;
         gbc.gridx = 0; gbc.gridy = row;
-        formPanel.add(new JLabel("Materiales utilizados:"), gbc);
-        gbc.gridx = 1;
-        JTextArea materialesArea = new JTextArea(3, 20);
-        materialesArea.setLineWrap(true);
-        formPanel.add(new JScrollPane(materialesArea), gbc);
-
-        row++;
-        gbc.gridx = 0; gbc.gridy = row;
         formPanel.add(new JLabel("Resultados alcanzados:"), gbc);
         gbc.gridx = 1;
         JTextArea resultadosArea = new JTextArea(4, 20);
@@ -2841,7 +3822,6 @@ public class DashboardCoordUI extends JFrame {
             try {
                 int personasBeneficiadas = (int) beneficiadosSpinner.getValue();
                 double horasTrabajadas = (double) horasSpinner.getValue();
-                String materiales = materialesArea.getText().trim();
                 String resultados = resultadosArea.getText().trim();
                 String observaciones = observacionesArea.getText().trim();
 
@@ -2857,7 +3837,6 @@ public class DashboardCoordUI extends JFrame {
                         actividad.getId(),
                         personasBeneficiadas,
                         horasTrabajadas,
-                        materiales,
                         resultados,
                         observaciones
                 );
@@ -3282,73 +4261,24 @@ public class DashboardCoordUI extends JFrame {
     }
 
     /**
-     * Método temporal para obtener actividades simuladas
-     */
-    private List<Actividad> obtenerActividadesSimuladas() {
-        List<Actividad> actividades = new ArrayList<>();
-
-        try {
-            // Actividad 1
-            Brigada brigada1 = gestorGeneral.getGestorBrigadas().obtenerTodasBrigadas().get(0);
-            Actividad actividad1 = new Actividad(
-                    "ACT-001",
-                    "Distribución de Alimentos",
-                    new java.text.SimpleDateFormat("dd/MM/yyyy").parse("25/11/2025"),
-                    "Parque Central",
-                    "Distribuir alimentos a familias necesitadas",
-                    brigada1
-            );
-            actividades.add(actividad1);
-
-            // Actividad 2
-            if (gestorGeneral.getGestorBrigadas().obtenerTodasBrigadas().size() > 1) {
-                Brigada brigada2 = gestorGeneral.getGestorBrigadas().obtenerTodasBrigadas().get(1);
-                Actividad actividad2 = new Actividad(
-                        "ACT-002",
-                        "Limpieza Comunitaria",
-                        new java.text.SimpleDateFormat("dd/MM/yyyy").parse("28/11/2025"),
-                        "Zona Sur",
-                        "Limpiar áreas públicas y recolección de basura",
-                        brigada2
-                );
-                actividades.add(actividad2);
-            }
-
-            // Actividad 3
-            Actividad actividad3 = new Actividad(
-                    "ACT-003",
-                    "Taller de Primeros Auxilios",
-                    new java.text.SimpleDateFormat("dd/MM/yyyy").parse("30/11/2025"),
-                    "Centro Comunitario",
-                    "Capacitar a voluntarios en técnicas básicas de primeros auxilios",
-                    brigada1
-            );
-            actividades.add(actividad3);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return actividades;
-    }
-
-    /**
-     * Actualiza la tabla de actividades
+     * Actualiza la tabla de actividades - VERSIÓN CORREGIDA
      */
     private void actualizarTablaActividades() {
-        Component[] components = actividadesPanel.getComponents();
-        for (Component comp : components) {
-            if (comp instanceof JScrollPane) {
-                JViewport viewport = ((JScrollPane) comp).getViewport();
-                if (viewport.getView() instanceof JTable) {
-                    JTable tabla = (JTable) viewport.getView();
+        SwingUtilities.invokeLater(() -> {
+            // Buscar el JScrollPane en el panel de actividades
+            JScrollPane scrollPane = findScrollPaneInPanel(actividadesPanel);
+
+            if (scrollPane != null) {
+                Component view = scrollPane.getViewport().getView();
+                if (view instanceof JTable) {
+                    JTable tabla = (JTable) view;
                     DefaultTableModel model = (DefaultTableModel) tabla.getModel();
                     cargarActividadesEnTabla(model);
                     tabla.repaint();
-                    break;
+                    tabla.revalidate();
                 }
             }
-        }
+        });
     }
 
     /**
@@ -3356,8 +4286,7 @@ public class DashboardCoordUI extends JFrame {
      */
     private String generarIdActividad() {
         try {
-            // En una implementación real, esto vendría del gestor
-            return String.format("ACT-%03d", 1); // Simulado
+            return gestorActividades.generarIdActividadGestor();
         } catch (Exception e) {
             return "ACT-001";
         }
@@ -3437,32 +4366,55 @@ public class DashboardCoordUI extends JFrame {
     /**
      * Elimina una actividad
      */
+    /**
+     * Elimina una actividad - VERSIÓN CORREGIDA PARA LA ESTRUCTURA REAL
+     */
     private void eliminarActividad(String id, String nombre) {
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "¿Está seguro que desea eliminar la actividad:\n" +
-                        nombre + " (ID: " + id + ")?",
-                "Confirmar Eliminación",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.WARNING_MESSAGE);
-
-        if (confirm == JOptionPane.YES_OPTION) {
-            try {
-                // CAMBIO: Usar el gestor real
-                gestorActividades.eliminarActividad(id);
-
-                JOptionPane.showMessageDialog(this,
-                        "Actividad '" + nombre + "' eliminada exitosamente",
-                        "Éxito", JOptionPane.INFORMATION_MESSAGE);
-
-                actualizarTablaActividades();
-
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(this,
-                        "Error al eliminar actividad: " + ex.getMessage(),
-                        "Error", JOptionPane.ERROR_MESSAGE);
+        try {
+            // Obtener la actividad
+            Actividad actividad = gestorActividades.buscarActividadPorId(id);
+            if (actividad == null) {
+                JOptionPane.showMessageDialog(this, "Actividad no encontrada", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
             }
+
+            // Verificar si hay voluntarios asignados
+            boolean tieneVoluntarios = actividad.getVoluntariosAsignados() != null &&
+                    !actividad.getVoluntariosAsignados().isEmpty();
+
+            if (tieneVoluntarios) {
+                int confirm = JOptionPane.showConfirmDialog(this,
+                        "La actividad '" + nombre + "' tiene " +
+                                actividad.getVoluntariosAsignados().size() + " voluntarios asignados.\n" +
+                                "¿Desea eliminar la actividad de todos modos?\n" +
+                                "(Los voluntarios serán desasignados automáticamente)",
+                        "Confirmar Eliminación",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
+
+                if (confirm != JOptionPane.YES_OPTION) {
+                    return;
+                }
+            }
+
+            // Eliminar la actividad (el gestor debería manejar la limpieza)
+            gestorActividades.eliminarActividad(id);
+
+            JOptionPane.showMessageDialog(this,
+                    "Actividad '" + nombre + "' eliminada exitosamente",
+                    "Éxito", JOptionPane.INFORMATION_MESSAGE);
+
+            actualizarTablaActividades();
+
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Error al eliminar actividad: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace();
         }
     }
+
+
 
     private JPanel createRecursosPanel() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -3610,27 +4562,27 @@ public class DashboardCoordUI extends JFrame {
         }
     }
 
+    /**
+     * Actualiza la tabla de recursos - VERSIÓN CORREGIDA
+     */
     private void actualizarTablaRecursos() {
         SwingUtilities.invokeLater(() -> {
-            Component[] components = recursosPanel.getComponents();
-            for (Component comp : components) {
-                if (comp instanceof JScrollPane) {
-                    JViewport viewport = ((JScrollPane) comp).getViewport();
-                    if (viewport.getView() instanceof JTable) {
-                        JTable tabla = (JTable) viewport.getView();
-                        DefaultTableModel model = (DefaultTableModel) tabla.getModel();
-                        cargarRecursosEnTabla(model);
-                        tabla.repaint();
-                        break;
-                    }
+            // Buscar el JScrollPane en el panel de recursos
+            JScrollPane scrollPane = findScrollPaneInPanel(recursosPanel);
+
+            if (scrollPane != null) {
+                Component view = scrollPane.getViewport().getView();
+                if (view instanceof JTable) {
+                    JTable tabla = (JTable) view;
+                    DefaultTableModel model = (DefaultTableModel) tabla.getModel();
+                    cargarRecursosEnTabla(model);
+                    tabla.repaint();
+                    tabla.revalidate();
                 }
             }
         });
     }
 
-    /**
-     * Muestra formulario para nuevo recurso
-     */
     private void mostrarFormularioNuevoRecurso() {
         JDialog dialog = new JDialog(this, "Agregar Nuevo Recurso", true);
         dialog.setLayout(new BorderLayout());
@@ -4546,125 +5498,945 @@ public class DashboardCoordUI extends JFrame {
         dialog.setVisible(true);
     }
 
-    private void mostrarDetallesRecurso(Recurso recurso) {
-        StringBuilder detalles = new StringBuilder();
-        detalles.append("=== DETALLES DEL RECURSO ===\n\n");
-        detalles.append("ID: ").append(recurso.getId()).append("\n");
-        detalles.append("Nombre: ").append(recurso.getNombre()).append("\n");
-        detalles.append("Categoría: ").append(recurso.getCategoria()).append("\n");
-        detalles.append("Stock Actual: ").append(recurso.getStockActual()).append("\n");
-        detalles.append("Umbral de Alerta: ").append(recurso.getUmbralAlerta()).append("\n");
-        detalles.append("Capacidad Máxima: ").append(recurso.getCapacidadMaxima()).append("\n");
-        detalles.append("Unidad de Medida: ").append(recurso.getUnidadMedida()).append("\n");
-        detalles.append("Espacio Disponible: ").append(recurso.getEspacioDisponible()).append("\n");
-        detalles.append("Porcentaje Disponible: ").append(String.format("%.1f", recurso.getPorcentajeDisponible())).append("%\n");
-        detalles.append("Estado: ");
-
-        if (recurso.estaAgotado()) {
-            detalles.append("AGOTADO\n");
-        } else if (recurso.tieneStockBajo()) {
-            detalles.append("BAJO STOCK\n");
-        } else {
-            detalles.append("DISPONIBLE\n");
+    /**
+     * Obtiene IDs de voluntarios asignados a una actividad (usando la estructura real)
+     */
+    private List<String> obtenerVoluntariosAsignadosIds(String actividadId) {
+        try {
+            Actividad actividad = gestorActividades.buscarActividadPorId(actividadId);
+            if (actividad != null && actividad.getVoluntariosAsignados() != null) {
+                return new ArrayList<>(actividad.getVoluntariosAsignados().keySet());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-
-        JOptionPane.showMessageDialog(this,
-                detalles.toString(),
-                "Detalles del Recurso: " + recurso.getNombre(),
-                JOptionPane.INFORMATION_MESSAGE);
+        return new ArrayList<>();
     }
 
-    private void verificarStockRecursos() {
+    /**
+     * Obtiene voluntarios asignados a una actividad (usando la estructura real)
+     */
+    private List<Voluntario> obtenerVoluntariosAsignados(String actividadId) {
+        List<Voluntario> voluntarios = new ArrayList<>();
         try {
-            List<Recurso> recursosBajoStock = gestorGeneral.getGestorRecursos().obtenerRecursosBajoStock();
-            List<Recurso> todosRecursos = gestorGeneral.getGestorRecursos().obtenerTodosRecursos();
+            List<String> voluntariosIds = obtenerVoluntariosAsignadosIds(actividadId);
+            for (String volId : voluntariosIds) {
+                Voluntario vol = obtenerVoluntarioPorId(volId);
+                if (vol != null) {
+                    voluntarios.add(vol);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return voluntarios;
+    }
 
-            StringBuilder reporte = new StringBuilder();
-            reporte.append("=== REPORTE DE STOCK ===\n\n");
-            reporte.append("Total de recursos: ").append(todosRecursos.size()).append("\n");
+    /**
+     * Asigna voluntarios a una actividad (usando la estructura real)
+     */
+    private boolean asignarVoluntariosActividad(String actividadId, List<String> voluntariosIds) {
+        try {
+            Actividad actividad = gestorActividades.buscarActividadPorId(actividadId);
+            if (actividad != null) {
+                // Crear nuevo mapa con los voluntarios
+                Map<String, String> nuevosVoluntarios = new HashMap<>();
+                for (String volId : voluntariosIds) {
+                    Voluntario vol = obtenerVoluntarioPorId(volId);
+                    if (vol != null) {
+                        nuevosVoluntarios.put(volId, vol.getNombre()); // Guardamos ID -> Nombre
+                    }
+                }
+                actividad.setVoluntariosAsignados(nuevosVoluntarios);
+                gestorActividades.actualizarActividad(actividad);
+                return true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 
-            int agotados = 0;
-            int bajos = 0;
-            int disponibles = 0;
+    /**
+     * Crea el panel de reportes simplificado - Historial (RF-08) con detalles (RF-07)
+     */
+    private JPanel createReportesPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(BACKGROUND_GRAY);
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-            for (Recurso recurso : todosRecursos) {
-                if (recurso.estaAgotado()) agotados++;
-                else if (recurso.tieneStockBajo()) bajos++;
-                else disponibles++;
+        // Título
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setBackground(BACKGROUND_GRAY);
+
+        JLabel title = new JLabel("Historial de Actividades");
+        title.setFont(new Font("Arial", Font.BOLD, 24));
+        titlePanel.add(title, BorderLayout.WEST);
+
+        JLabel subtitle = new JLabel("RF-08: Consultar historial | RF-07: Ver resultados registrados");
+        subtitle.setFont(new Font("Arial", Font.PLAIN, 12));
+        subtitle.setForeground(Color.GRAY);
+        titlePanel.add(subtitle, BorderLayout.SOUTH);
+
+        panel.add(titlePanel, BorderLayout.NORTH);
+
+        // Barra de herramientas con filtros
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        toolbar.setBackground(Color.WHITE);
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
+                new EmptyBorder(10, 10, 10, 10)
+        ));
+
+        // Filtros
+        toolbar.add(new JLabel("Filtrar por:"));
+
+        JComboBox<String> filtroCombo = new JComboBox<>(new String[]{
+                "Todas las actividades", "Solo completadas", "Solo pendientes",
+                "Con resultados", "Sin resultados"
+        });
+        toolbar.add(filtroCombo);
+
+        toolbar.add(Box.createHorizontalStrut(20));
+
+        toolbar.add(new JLabel("Brigada:"));
+        JComboBox<String> brigadaCombo = new JComboBox<>();
+        brigadaCombo.addItem("Todas");
+        try {
+            List<Brigada> brigadas = gestorGeneral.getGestorBrigadas().obtenerTodasBrigadas();
+            for (Brigada brigada : brigadas) {
+                brigadaCombo.addItem(brigada.getNombre());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        toolbar.add(brigadaCombo);
+
+        toolbar.add(Box.createHorizontalStrut(20));
+
+        JTextField buscarField = new JTextField(20);
+        buscarField.setToolTipText("Buscar por nombre o lugar");
+        toolbar.add(buscarField);
+
+        JButton buscarBtn = new JButton("Buscar");
+        buscarBtn.addActionListener(e -> {
+            filtrarHistorialSimplicado(
+                    filtroCombo.getSelectedIndex(),
+                    brigadaCombo.getSelectedIndex(),
+                    buscarField.getText()
+            );
+        });
+        toolbar.add(buscarBtn);
+
+        JButton limpiarBtn = new JButton("Limpiar filtros");
+        limpiarBtn.addActionListener(e -> {
+            filtroCombo.setSelectedIndex(0);
+            brigadaCombo.setSelectedIndex(0);
+            buscarField.setText("");
+            cargarHistorialCompleto();
+        });
+        toolbar.add(limpiarBtn);
+
+        JButton actualizarBtn = new JButton("Actualizar");
+        actualizarBtn.addActionListener(e -> cargarHistorialCompleto());
+        toolbar.add(actualizarBtn);
+
+        panel.add(toolbar, BorderLayout.NORTH);
+
+        // Tabla de historial
+        String[] columnNames = {"ID", "Nombre", "Fecha", "Lugar", "Brigada", "Estado", "Resultados", "Acción"};
+        DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column == 7; // Solo la columna de acción es editable
+            }
+        };
+
+        JTable tabla = new JTable(model);
+        tabla.setRowHeight(40);
+        tabla.getTableHeader().setFont(new Font("Arial", Font.BOLD, 12));
+        tabla.setFont(new Font("Arial", Font.PLAIN, 12));
+
+        // Configurar anchos de columnas
+        tabla.getColumnModel().getColumn(0).setPreferredWidth(80);   // ID
+        tabla.getColumnModel().getColumn(1).setPreferredWidth(150);  // Nombre
+        tabla.getColumnModel().getColumn(2).setPreferredWidth(80);   // Fecha
+        tabla.getColumnModel().getColumn(3).setPreferredWidth(120);  // Lugar
+        tabla.getColumnModel().getColumn(4).setPreferredWidth(120);  // Brigada
+        tabla.getColumnModel().getColumn(5).setPreferredWidth(100);  // Estado
+        tabla.getColumnModel().getColumn(6).setPreferredWidth(200);  // Resultados
+        tabla.getColumnModel().getColumn(7).setPreferredWidth(100);  // Acción
+
+        // Configurar renderizador y editor para botón
+        tabla.getColumnModel().getColumn(7).setCellRenderer(new HistorialButtonRenderer());
+        tabla.getColumnModel().getColumn(7).setCellEditor(new HistorialButtonEditor(new JCheckBox(), tabla));
+
+        // Cargar historial completo inicialmente
+        cargarHistorialCompletoEnTabla(model);
+
+        JScrollPane scrollPane = new JScrollPane(tabla);
+        scrollPane.setPreferredSize(new Dimension(1100, 450));
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Panel de información
+        JPanel infoPanel = new JPanel(new BorderLayout());
+        infoPanel.setBackground(new Color(240, 248, 255));
+        infoPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(173, 216, 230), 1),
+                new EmptyBorder(10, 15, 10, 15)
+        ));
+
+        // Botón para ver estadísticas rápidas
+        JButton statsBtn = new JButton("Ver estadísticas");
+        statsBtn.addActionListener(e -> mostrarEstadisticasRapidas());
+        infoPanel.add(statsBtn, BorderLayout.EAST);
+
+        panel.add(infoPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    /**
+     * Carga el historial completo en la tabla
+     */
+    private void cargarHistorialCompletoEnTabla(DefaultTableModel model) {
+        model.setRowCount(0); // Limpiar tabla
+
+        try {
+            List<Actividad> actividades = gestorActividades.obtenerTodasActividades();
+            cargarActividadesEnTabla(model, actividades);
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                    "Error cargando historial: " + e.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Carga actividades específicas en la tabla
+     */
+    private void cargarActividadesEnTabla(DefaultTableModel model, List<Actividad> actividades) {
+        model.setRowCount(0);
+
+        if (actividades.isEmpty()) {
+            model.addRow(new Object[]{"", "No se encontraron actividades", "", "", "", "", "", ""});
+            return;
+        }
+
+        Date ahora = new Date();
+
+        for (Actividad actividad : actividades) {
+            String fechaStr = new java.text.SimpleDateFormat("dd/MM/yyyy").format(actividad.getFecha());
+            String brigadaNombre = actividad.getBrigadaAsociada() != null ?
+                    actividad.getBrigadaAsociada().getNombre() : "Sin asignar";
+
+            // Estado
+            String estado = actividad.getFecha().after(ahora) ? "Pendiente" : "Completada";
+
+            // Resultados
+            String resultadosInfo = "Sin resultados";
+            if (actividad.getResultados() != null && !actividad.getResultados().isEmpty()) {
+                resultadosInfo = "Resultados registrados";
             }
 
-            reporte.append("Recursos agotados: ").append(agotados).append("\n");
-            reporte.append("Recursos con stock bajo: ").append(bajos).append("\n");
-            reporte.append("Recursos disponibles: ").append(disponibles).append("\n\n");
+            model.addRow(new Object[]{
+                    actividad.getId(),
+                    actividad.getNombre(),
+                    fechaStr,
+                    actividad.getLugar(),
+                    brigadaNombre,
+                    estado,
+                    resultadosInfo,
+                    "Ver detalles"
+            });
+        }
+    }
 
-            if (!recursosBajoStock.isEmpty()) {
-                reporte.append("=== RECURSOS CON STOCK BAJO ===\n");
-                for (Recurso recurso : recursosBajoStock) {
-                    reporte.append("• ").append(recurso.getNombre())
-                            .append(": ").append(recurso.getStockActual())
-                            .append("/").append(recurso.getUmbralAlerta())
-                            .append("\n");
+    /**
+     * Método para cargar historial completo (llamado desde botón)
+     */
+    private void cargarHistorialCompleto() {
+        // Encontrar la tabla en el panel de reportes
+        Component[] components = reportesPanel.getComponents();
+        for (Component comp : components) {
+            if (comp instanceof JScrollPane) {
+                JViewport viewport = ((JScrollPane) comp).getViewport();
+                if (viewport.getView() instanceof JTable) {
+                    JTable tabla = (JTable) viewport.getView();
+                    DefaultTableModel model = (DefaultTableModel) tabla.getModel();
+                    cargarHistorialCompletoEnTabla(model);
+                    tabla.repaint();
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * Filtra el historial de manera simplificada
+     */
+    private void filtrarHistorialSimplicado(int filtroIndex, int brigadaIndex, String busqueda) {
+        try {
+            List<Actividad> todasActividades = gestorActividades.obtenerTodasActividades();
+            List<Actividad> actividadesFiltradas = new ArrayList<>();
+            Date ahora = new Date();
+
+            String busquedaLower = busqueda.toLowerCase();
+            String brigadaNombre = "";
+
+            // Obtener nombre de brigada si se seleccionó una específica
+            if (brigadaIndex > 0) {
+                try {
+                    List<Brigada> brigadas = gestorGeneral.getGestorBrigadas().obtenerTodasBrigadas();
+                    brigadaNombre = brigadas.get(brigadaIndex - 1).getNombre();
+                } catch (Exception e) {
+                    // Si hay error, ignorar filtro de brigada
                 }
             }
 
-            JTextArea textArea = new JTextArea(reporte.toString());
-            textArea.setEditable(false);
+            for (Actividad actividad : todasActividades) {
+                boolean pasaFiltro = true;
+
+                // Aplicar filtro de estado
+                switch (filtroIndex) {
+                    case 1: // Solo completadas
+                        if (actividad.getFecha().after(ahora)) pasaFiltro = false;
+                        break;
+                    case 2: // Solo pendientes
+                        if (!actividad.getFecha().after(ahora)) pasaFiltro = false;
+                        break;
+                    case 3: // Con resultados
+                        if (actividad.getResultados() == null || actividad.getResultados().isEmpty())
+                            pasaFiltro = false;
+                        break;
+                    case 4: // Sin resultados
+                        if (actividad.getResultados() != null && !actividad.getResultados().isEmpty())
+                            pasaFiltro = false;
+                        break;
+                }
+
+                // Aplicar filtro de brigada
+                if (pasaFiltro && brigadaIndex > 0) {
+                    if (actividad.getBrigadaAsociada() == null ||
+                            !actividad.getBrigadaAsociada().getNombre().equals(brigadaNombre)) {
+                        pasaFiltro = false;
+                    }
+                }
+
+                // Aplicar búsqueda
+                if (pasaFiltro && !busqueda.trim().isEmpty()) {
+                    boolean coincide =
+                            actividad.getNombre().toLowerCase().contains(busquedaLower) ||
+                                    actividad.getLugar().toLowerCase().contains(busquedaLower) ||
+                                    (actividad.getBrigadaAsociada() != null &&
+                                            actividad.getBrigadaAsociada().getNombre().toLowerCase().contains(busquedaLower));
+
+                    if (!coincide) pasaFiltro = false;
+                }
+
+                if (pasaFiltro) {
+                    actividadesFiltradas.add(actividad);
+                }
+            }
+
+            // Actualizar tabla
+            Component[] components = reportesPanel.getComponents();
+            for (Component comp : components) {
+                if (comp instanceof JScrollPane) {
+                    JViewport viewport = ((JScrollPane) comp).getViewport();
+                    if (viewport.getView() instanceof JTable) {
+                        JTable tabla = (JTable) viewport.getView();
+                        DefaultTableModel model = (DefaultTableModel) tabla.getModel();
+                        cargarActividadesEnTabla(model, actividadesFiltradas);
+                        tabla.repaint();
+
+                        // Mostrar mensaje
+                        if (actividadesFiltradas.isEmpty()) {
+                            JOptionPane.showMessageDialog(this,
+                                    "No se encontraron actividades con los filtros aplicados",
+                                    "Sin resultados",
+                                    JOptionPane.INFORMATION_MESSAGE);
+                        }
+                        return;
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                    "Error al filtrar: " + e.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Renderizador para botón "Ver detalles"
+     */
+    class HistorialButtonRenderer extends JPanel implements TableCellRenderer {
+        private JButton detallesBtn;
+
+        public HistorialButtonRenderer() {
+            setLayout(new FlowLayout(FlowLayout.CENTER));
+            setOpaque(true);
+
+            detallesBtn = new JButton("Ver detalles");
+            detallesBtn.setFont(new Font("Arial", Font.PLAIN, 10));
+            detallesBtn.setBackground(new Color(33, 150, 243));
+            detallesBtn.setForeground(Color.WHITE);
+            detallesBtn.setFocusPainted(false);
+            detallesBtn.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+            detallesBtn.setPreferredSize(new Dimension(85, 25));
+
+            add(detallesBtn);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean isSelected, boolean hasFocus,
+                                                       int row, int column) {
+            if (isSelected) {
+                setBackground(table.getSelectionBackground());
+            } else {
+                setBackground(table.getBackground());
+            }
+            return this;
+        }
+    }
+
+    /**
+     * Editor para botón "Ver detalles"
+     */
+    class HistorialButtonEditor extends AbstractCellEditor implements TableCellEditor {
+        private JPanel panel;
+        private JButton detallesBtn;
+        private JTable tabla;
+        private int currentRow;
+
+        public HistorialButtonEditor(JCheckBox checkBox, JTable tabla) {
+            this.tabla = tabla;
+
+            panel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+            panel.setOpaque(true);
+
+            detallesBtn = new JButton("Ver detalles");
+            detallesBtn.setFont(new Font("Arial", Font.PLAIN, 10));
+            detallesBtn.setBackground(new Color(33, 150, 243));
+            detallesBtn.setForeground(Color.WHITE);
+            detallesBtn.setFocusPainted(false);
+            detallesBtn.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+            detallesBtn.setPreferredSize(new Dimension(85, 25));
+            detallesBtn.addActionListener(e -> {
+                verDetallesActividad();
+                fireEditingStopped();
+            });
+
+            panel.add(detallesBtn);
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value,
+                                                     boolean isSelected, int row, int column) {
+            currentRow = row;
+            if (isSelected) {
+                panel.setBackground(table.getSelectionBackground());
+            } else {
+                panel.setBackground(table.getBackground());
+            }
+            return panel;
+        }
+
+        @Override
+        public Object getCellEditorValue() {
+            return "Ver detalles";
+        }
+
+        private void verDetallesActividad() {
+            String actividadId = (String) tabla.getValueAt(currentRow, 0);
+            String actividadNombre = (String) tabla.getValueAt(currentRow, 1);
+
+            if (actividadId == null || actividadId.isEmpty()) {
+                return; // Fila vacía
+            }
+
+            mostrarDetallesActividadDialogo(actividadId, actividadNombre);
+        }
+    }
+
+    /**
+     * Muestra diálogo con detalles completos de una actividad (incluye resultados RF-07 y recursos)
+     */
+    private void mostrarDetallesActividadDialogo(String actividadId, String actividadNombre) {
+        try {
+            Actividad actividad = gestorActividades.buscarActividadPorId(actividadId);
+            if (actividad == null) {
+                JOptionPane.showMessageDialog(this,
+                        "Actividad no encontrada: " + actividadId,
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            JDialog dialog = new JDialog(this, "Detalles: " + actividadNombre, true);
+            dialog.setLayout(new BorderLayout());
+            dialog.setSize(800, 700);
+            dialog.setLocationRelativeTo(this);
+
+            JTabbedPane tabbedPane = new JTabbedPane();
+
+            // Tab 1: Información general
+            tabbedPane.addTab("📋 Información General", crearPanelInfoGeneral(actividad));
+
+            // Tab 2: Resultados registrados (RF-07)
+            tabbedPane.addTab("📊 Resultados (RF-07)", crearPanelResultadosRegistrados(actividad));
+
+            // Tab 3: Voluntarios asignados
+            tabbedPane.addTab("👥 Participantes", crearPanelVoluntariosAsignados(actividad));
+
+            // Tab 4: Recursos asignados (SOLO VISUALIZACIÓN)
+            tabbedPane.addTab("📦 Recursos", crearPanelRecursosAsignados(actividad));
+
+            dialog.add(tabbedPane, BorderLayout.CENTER);
+
+            // Panel de botones (mantén solo lo que tenías antes)
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            JButton cerrarBtn = new JButton("Cerrar");
+            cerrarBtn.addActionListener(e -> dialog.dispose());
+
+            buttonPanel.add(cerrarBtn);
+            dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+            dialog.setVisible(true);
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this,
+                    "Error al mostrar detalles: " + e.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Crea panel con información general de la actividad
+     */
+    private JPanel crearPanelInfoGeneral(Actividad actividad) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        StringBuilder info = new StringBuilder();
+        info.append("INFORMACIÓN GENERAL\n");
+        info.append("=".repeat(50)).append("\n\n");
+
+        info.append("ID: ").append(actividad.getId()).append("\n");
+        info.append("Nombre: ").append(actividad.getNombre()).append("\n");
+        info.append("Fecha: ").append(
+                new java.text.SimpleDateFormat("dd/MM/yyyy").format(actividad.getFecha())).append("\n");
+        info.append("Lugar: ").append(actividad.getLugar()).append("\n\n");
+
+        info.append("OBJETIVO:\n");
+        info.append("-".repeat(30)).append("\n");
+        info.append(actividad.getObjetivo()).append("\n\n");
+
+        info.append("BRIGADA RESPONSABLE:\n");
+        info.append("-".repeat(30)).append("\n");
+        if (actividad.getBrigadaAsociada() != null) {
+            Brigada brigada = actividad.getBrigadaAsociada();
+            info.append("• Nombre: ").append(brigada.getNombre()).append("\n");
+            info.append("• ID: ").append(brigada.getId()).append("\n");
+            info.append("• Tipo: ").append(brigada.getTipo()).append("\n");
+            info.append("• Zona: ").append(brigada.getZona()).append("\n");
+            info.append("• Estado: ").append(brigada.getEstado()).append("\n");
+        } else {
+            info.append("No asignada\n");
+        }
+        info.append("\n");
+
+        info.append("ESTADO:\n");
+        info.append("-".repeat(30)).append("\n");
+        Date ahora = new Date();
+        if (actividad.getFecha().after(ahora)) {
+            info.append("• Estado: Pendiente\n");
+            info.append("• Faltan ").append(
+                    (actividad.getFecha().getTime() - ahora.getTime()) / (1000 * 60 * 60 * 24)).append(" días\n");
+        } else {
+            info.append("• Estado: Completada\n");
+            long diasTranscurridos = (ahora.getTime() - actividad.getFecha().getTime()) / (1000 * 60 * 60 * 24);
+            info.append("• Completada hace ").append(diasTranscurridos).append(" días\n");
+        }
+
+        JTextArea textArea = new JTextArea(info.toString());
+        textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        textArea.setEditable(false);
+
+        panel.add(new JScrollPane(textArea), BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    /**
+     * Crea panel con resultados registrados (RF-07)
+     */
+    private JPanel crearPanelResultadosRegistrados(Actividad actividad) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        if (actividad.getResultados() == null || actividad.getResultados().isEmpty()) {
+            JLabel noResultados = new JLabel("<html><center><h3>No hay resultados registrados</h3>" +
+                    "<p>Esta actividad aún no tiene resultados documentados.</p>" +
+                    "<p>Para registrar resultados, diríjase a la sección de actividades.</p></center></html>");
+            noResultados.setHorizontalAlignment(SwingConstants.CENTER);
+            panel.add(noResultados, BorderLayout.CENTER);
+
+            return panel;
+        }
+
+        // Si hay resultados, mostrarlos formateados
+        JTextArea textArea = new JTextArea(actividad.getResultados());
+        textArea.setFont(new Font("Arial", Font.PLAIN, 12));
+        textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+
+        // Agregar título
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(new EmptyBorder(0, 0, 10, 0));
+        JLabel titulo = new JLabel("RESULTADOS REGISTRADOS (RF-07)");
+        titulo.setFont(new Font("Arial", Font.BOLD, 14));
+        titulo.setForeground(new Color(0, 100, 0));
+        headerPanel.add(titulo, BorderLayout.WEST);
+
+        JLabel fechaLabel = new JLabel("Registrado el: " +
+                new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date()));
+        fechaLabel.setFont(new Font("Arial", Font.ITALIC, 10));
+        fechaLabel.setForeground(Color.GRAY);
+        headerPanel.add(fechaLabel, BorderLayout.EAST);
+
+        panel.add(headerPanel, BorderLayout.NORTH);
+        panel.add(new JScrollPane(textArea), BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    /**
+     * Crea panel con voluntarios asignados - VERSIÓN CORREGIDA
+     */
+    private JPanel crearPanelVoluntariosAsignados(Actividad actividad) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JTextArea textArea = new JTextArea();
+        textArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        textArea.setEditable(false);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+
+        StringBuilder info = new StringBuilder();
+        info.append("VOLUNTARIOS ASIGNADOS A LA ACTIVIDAD\n");
+        info.append("=".repeat(50)).append("\n\n");
+
+        try {
+            // Obtener voluntarios directamente asignados a la actividad
+            List<Voluntario> voluntariosDirectos = obtenerVoluntariosAsignadosAActividad(actividad.getId());
+
+            // Obtener voluntarios a través de la brigada (si existe)
+            List<Voluntario> voluntariosPorBrigada = new ArrayList<>();
+            if (actividad.getBrigadaAsociada() != null) {
+                voluntariosPorBrigada = gestorGeneral.getGestorBrigadas()
+                        .obtenerVoluntariosDeBrigada(actividad.getBrigadaAsociada().getId());
+            }
+
+            // Voluntarios únicos (evitar duplicados)
+            Set<String> voluntariosUnicos = new HashSet<>();
+            List<Voluntario> todosVoluntarios = new ArrayList<>();
+
+            // Agregar voluntarios directos primero
+            for (Voluntario vol : voluntariosDirectos) {
+                if (voluntariosUnicos.add(vol.getId())) {
+                    todosVoluntarios.add(vol);
+                    info.append("• ").append(vol.getNombre())
+                            .append(" (Asignación directa)\n")
+                            .append("  Email: ").append(vol.getEmail()).append("\n");
+
+                    if (vol.getHabilidades() != null && !vol.getHabilidades().isEmpty()) {
+                        info.append("  Habilidades: ").append(String.join(", ", vol.getHabilidades())).append("\n");
+                    }
+                    info.append("\n");
+                }
+            }
+
+            // Agregar voluntarios de brigada (solo si no están ya en la lista)
+            for (Voluntario vol : voluntariosPorBrigada) {
+                if (voluntariosUnicos.add(vol.getId())) {
+                    todosVoluntarios.add(vol);
+                    info.append("• ").append(vol.getNombre())
+                            .append(" (Por brigada: ").append(actividad.getBrigadaAsociada().getNombre()).append(")\n")
+                            .append("  Email: ").append(vol.getEmail()).append("\n");
+
+                    if (vol.getHabilidades() != null && !vol.getHabilidades().isEmpty()) {
+                        info.append("  Habilidades: ").append(String.join(", ", vol.getHabilidades())).append("\n");
+                    }
+                    info.append("\n");
+                }
+            }
+
+            if (todosVoluntarios.isEmpty()) {
+                info.append("No hay voluntarios asignados a esta actividad.\n\n");
+            } else {
+                info.append("\nRESUMEN:\n");
+                info.append("-".repeat(30)).append("\n");
+                info.append("• Total de voluntarios: ").append(todosVoluntarios.size()).append("\n");
+                info.append("• Por asignación directa: ").append(voluntariosDirectos.size()).append("\n");
+                if (actividad.getBrigadaAsociada() != null) {
+                    info.append("• Por brigada '").append(actividad.getBrigadaAsociada().getNombre())
+                            .append("': ").append(voluntariosPorBrigada.size()).append("\n");
+                }
+            }
+
+        } catch (Exception e) {
+            info.append("Error al cargar voluntarios: ").append(e.getMessage()).append("\n");
+            e.printStackTrace();
+        }
+
+        textArea.setText(info.toString());
+
+        // Agregar título
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(new EmptyBorder(0, 0, 10, 0));
+        JLabel titulo = new JLabel("PARTICIPANTES DE LA ACTIVIDAD");
+        titulo.setFont(new Font("Arial", Font.BOLD, 12));
+        headerPanel.add(titulo, BorderLayout.WEST);
+
+        panel.add(headerPanel, BorderLayout.NORTH);
+        panel.add(new JScrollPane(textArea), BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel crearTablaVoluntarios(String titulo, List<Voluntario> voluntarios) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        if (voluntarios.isEmpty()) {
+            JLabel vacio = new JLabel("<html><center><h3>No hay voluntarios</h3></center></html>");
+            vacio.setHorizontalAlignment(SwingConstants.CENTER);
+            panel.add(vacio, BorderLayout.CENTER);
+            return panel;
+        }
+
+        // Título
+        JLabel lblTitulo = new JLabel("<html><h3>" + titulo + " (" + voluntarios.size() + ")</h3></html>");
+        lblTitulo.setBorder(new EmptyBorder(0, 0, 10, 0));
+        panel.add(lblTitulo, BorderLayout.NORTH);
+
+        // Tabla
+        String[] columnNames = {"Nombre", "Email", "Teléfono", "Habilidades"};
+        DefaultTableModel model = new DefaultTableModel(columnNames, 0);
+
+        for (Voluntario voluntario : voluntarios) {
+            String habilidades = voluntario.getHabilidades() != null ?
+                    String.join(", ", voluntario.getHabilidades()) : "";
+
+            model.addRow(new Object[]{
+                    voluntario.getNombre(),
+                    voluntario.getEmail(),
+                    voluntario.getTelefono(),
+                    habilidades
+            });
+        }
+
+        JTable tabla = new JTable(model);
+        tabla.setRowHeight(30);
+        tabla.getTableHeader().setFont(new Font("Arial", Font.BOLD, 11));
+        tabla.setFont(new Font("Arial", Font.PLAIN, 11));
+
+        JScrollPane scrollPane = new JScrollPane(tabla);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private JPanel crearPanelError(Exception e) {
+        JPanel panel = new JPanel(new BorderLayout());
+        JLabel error = new JLabel("<html><center><h3>Error</h3><p>" + e.getMessage() + "</p></center></html>");
+        error.setHorizontalAlignment(SwingConstants.CENTER);
+        panel.add(error, BorderLayout.CENTER);
+        return panel;
+    }
+
+    /**
+     * Muestra estadísticas rápidas
+     */
+    private void mostrarEstadisticasRapidas() {
+        try {
+            List<Actividad> actividades = gestorActividades.obtenerTodasActividades();
+            Date ahora = new Date();
+
+            int totalActividades = actividades.size();
+            int actividadesPendientes = 0;
+            int actividadesCompletadas = 0;
+            int actividadesConResultados = 0;
+            int actividadesSinResultados = 0;
+
+            for (Actividad actividad : actividades) {
+                if (actividad.getFecha().after(ahora)) {
+                    actividadesPendientes++;
+                } else {
+                    actividadesCompletadas++;
+                }
+
+                if (actividad.getResultados() != null && !actividad.getResultados().isEmpty()) {
+                    actividadesConResultados++;
+                } else {
+                    actividadesSinResultados++;
+                }
+            }
+
+            String estadisticas = String.format("""
+            ========== ESTADÍSTICAS RÁPIDAS ==========
+            
+            ACTIVIDADES:
+            • Total: %d
+            • Pendientes: %d (%.1f%%)
+            • Completadas: %d (%.1f%%)
+            
+            RESULTADOS REGISTRADOS:
+            • Con resultados: %d (%.1f%%)
+            • Sin resultados: %d (%.1f%%)
+            
+            ==========================================
+            """,
+                    totalActividades,
+                    actividadesPendientes,
+                    totalActividades > 0 ? (actividadesPendientes * 100.0 / totalActividades) : 0,
+                    actividadesCompletadas,
+                    totalActividades > 0 ? (actividadesCompletadas * 100.0 / totalActividades) : 0,
+                    actividadesConResultados,
+                    actividadesCompletadas > 0 ? (actividadesConResultados * 100.0 / actividadesCompletadas) : 0,
+                    actividadesSinResultados,
+                    actividadesCompletadas > 0 ? (actividadesSinResultados * 100.0 / actividadesCompletadas) : 0
+            );
+
+            JTextArea textArea = new JTextArea(estadisticas);
             textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+            textArea.setEditable(false);
 
             JScrollPane scrollPane = new JScrollPane(textArea);
-            scrollPane.setPreferredSize(new Dimension(400, 300));
+            scrollPane.setPreferredSize(new Dimension(400, 250));
 
             JOptionPane.showMessageDialog(this,
                     scrollPane,
-                    "Reporte de Stock",
+                    "Estadísticas de Actividades",
                     JOptionPane.INFORMATION_MESSAGE);
 
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this,
-                    "Error al generar reporte: " + e.getMessage(),
+                    "Error al calcular estadísticas: " + e.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
         }
     }
 
-    private JPanel createReportesPanel() {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBackground(BACKGROUND_GRAY);
-        panel.setBorder(new EmptyBorder(30, 40, 30, 40));
+    private JPanel crearPanelRecursosAsignados(Actividad actividad) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // Título
-        JLabel title = new JLabel("Reportes y Análisis");
-        title.setFont(new Font("Arial", Font.BOLD, 28));
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-        panel.add(title);
+        try {
+            // Obtener el mapa de recursos asignados de la actividad
+            Map<String, Integer> recursosAsignados = actividad.getRecursosAsignados();
 
-        JLabel subtitle = new JLabel("Generar reportes de actividades y resultados");
-        subtitle.setFont(new Font("Arial", Font.PLAIN, 14));
-        subtitle.setForeground(Color.GRAY);
-        subtitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        panel.add(subtitle);
+            if (recursosAsignados == null || recursosAsignados.isEmpty()) {
+                JLabel vacio = new JLabel("<html><center><h3>No hay recursos asignados</h3>" +
+                        "<p>Esta actividad no tiene recursos asignados aún.</p></center></html>");
+                vacio.setHorizontalAlignment(SwingConstants.CENTER);
+                panel.add(vacio, BorderLayout.CENTER);
+                return panel;
+            }
 
-        panel.add(Box.createVerticalStrut(30));
+            // Título
+            JLabel lblTitulo = new JLabel("<html><h3>Recursos Asignados (" + recursosAsignados.size() + ")</h3></html>");
+            lblTitulo.setBorder(new EmptyBorder(0, 0, 10, 0));
+            panel.add(lblTitulo, BorderLayout.NORTH);
 
-        JLabel mensaje = new JLabel("Esta sección está en desarrollo...");
-        mensaje.setFont(new Font("Arial", Font.PLAIN, 16));
-        mensaje.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(mensaje);
+            // Tabla simple con 3 columnas
+            String[] columnNames = {"Nombre", "Cantidad", "Categoría"};
+            DefaultTableModel model = new DefaultTableModel(columnNames, 0);
 
-        panel.add(Box.createVerticalGlue());
+            int totalUnidades = 0;
+
+            // Para cada recurso en el mapa, obtener información básica
+            for (Map.Entry<String, Integer> entry : recursosAsignados.entrySet()) {
+                String recursoId = entry.getKey();
+                int cantidad = entry.getValue();
+
+                try {
+                    // Buscar información del recurso
+                    Recurso recurso = gestorGeneral.getGestorRecursos().buscarRecursoPorId(recursoId);
+
+                    if (recurso != null) {
+                        model.addRow(new Object[]{
+                                recurso.getNombre(),
+                                cantidad,
+                                recurso.getCategoria()
+                        });
+                    } else {
+                        // Si no se encuentra el recurso
+                        model.addRow(new Object[]{
+                                "[ID: " + recursoId + "]",
+                                cantidad,
+                                "Desconocida"
+                        });
+                    }
+                    totalUnidades += cantidad;
+
+                } catch (Exception e) {
+                    // En caso de error
+                    model.addRow(new Object[]{
+                            "[Error: " + recursoId + "]",
+                            cantidad,
+                            "Error"
+                    });
+                    totalUnidades += cantidad;
+                }
+            }
+
+            JTable tabla = new JTable(model);
+            tabla.setRowHeight(30);
+            tabla.getTableHeader().setFont(new Font("Arial", Font.BOLD, 11));
+            tabla.setFont(new Font("Arial", Font.PLAIN, 11));
+
+            // Configurar anchos de columnas
+            tabla.getColumnModel().getColumn(0).setPreferredWidth(200); // Nombre
+            tabla.getColumnModel().getColumn(1).setPreferredWidth(80);  // Cantidad
+            tabla.getColumnModel().getColumn(2).setPreferredWidth(120); // Categoría
+
+            JScrollPane scrollPane = new JScrollPane(tabla);
+            panel.add(scrollPane, BorderLayout.CENTER);
+
+            // Panel inferior con resumen simple
+            JPanel resumenPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            resumenPanel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
+                    new EmptyBorder(5, 10, 5, 10)
+            ));
+            resumenPanel.setBackground(new Color(240, 240, 240));
+
+            JLabel resumenLabel = new JLabel(String.format(
+                    "Total: %d recursos diferentes | %d unidades",
+                    recursosAsignados.size(),
+                    totalUnidades
+            ));
+            resumenPanel.add(resumenLabel);
+
+            panel.add(resumenPanel, BorderLayout.SOUTH);
+
+        } catch (Exception e) {
+            JLabel error = new JLabel("<html><center><h3>Error al cargar recursos</h3></center></html>");
+            error.setHorizontalAlignment(SwingConstants.CENTER);
+            panel.add(error, BorderLayout.CENTER);
+        }
+
         return panel;
-    }
-
-    // ===== MÉTODOS DE FUNCIONALIDADES RF =====
-
-    private void mostrarNotificaciones() {
-        JOptionPane.showMessageDialog(this,
-                "Notificaciones del sistema:\n\n" +
-                        "• 3 actividades requieren confirmación\n" +
-                        "• 5 voluntarios pendientes de asignación\n" +
-                        "• Recursos al 85% de capacidad\n" +
-                        "• 1 brigada necesita más voluntarios",
-                "Notificaciones", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void mostrarFormularioNuevaBrigada() {
@@ -4803,14 +6575,6 @@ public class DashboardCoordUI extends JFrame {
         dialog.setVisible(true);
     }
 
-    private void convocarVoluntariosUrgentes() {
-        JOptionPane.showMessageDialog(this,
-                "RF-09: Convocando voluntarios para situación urgente\n" +
-                        "Se enviarán notificaciones a voluntarios disponibles",
-                "Convocatoria Urgente", JOptionPane.WARNING_MESSAGE);
-    }
-
-
     private void planificarNuevaActividad() {
         // Cambiar al panel de actividades y abrir el formulario
         cambiarPanel("actividades");
@@ -4821,9 +6585,6 @@ public class DashboardCoordUI extends JFrame {
     }
 
     private void consultarRecursos() {
-        JOptionPane.showMessageDialog(this,
-                "RF-10: Consultando disponibilidad de recursos\n" +
-                        "Mostrando inventario comunitario actual",
-                "Consulta de Recursos", JOptionPane.INFORMATION_MESSAGE);
+        cambiarPanel("recursos");
     }
 }

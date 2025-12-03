@@ -152,6 +152,23 @@ public class GestorBrigadas {
         return new ArrayList<>(brigada.getVoluntarios());
     }
 
+    /**
+     * Busca brigada por nombre
+     */
+    public Brigada buscarBrigadaPorNombre(String nombre) {
+        try {
+            List<Brigada> brigadas = obtenerTodasBrigadas();
+            for (Brigada brigada : brigadas) {
+                if (brigada.getNombre().equals(nombre)) {
+                    return brigada;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     /* Asigna un coordinador a una brigada. */
     public void asignarCoordinadorABrigada(String brigadaId, Coordinador coordinador)
             throws BrigadaException {

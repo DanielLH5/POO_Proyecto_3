@@ -23,15 +23,17 @@ public class GestorActividades {
     private GestorBrigadas gestorBrigadas;
     private GestorVoluntarios gestorVoluntarios;
     private GestorAlmacenamiento gestorAlmacenamiento;
+    private GestorRecursos gestorRecursos;
 
     // Mapa para roles de voluntarios en actividades
     private Map<String, Map<String, String>> asignacionesVoluntarios; // actividadId -> (voluntarioId -> rol)
 
-    public GestorActividades(GestorBrigadas gestorBrigadas, GestorVoluntarios gestorVoluntarios) {
+    public GestorActividades(GestorBrigadas gestorBrigadas, GestorVoluntarios gestorVoluntarios, GestorRecursos gestorRecursos) {
         this.actividades = new ArrayList<>();
         this.gestorBrigadas = gestorBrigadas;
         this.gestorVoluntarios = gestorVoluntarios;
         this.gestorAlmacenamiento = new GestorAlmacenamiento();
+        this.gestorRecursos = gestorRecursos;
         this.asignacionesVoluntarios = new HashMap<>();
         cargarActividades();
     }
@@ -72,10 +74,225 @@ public class GestorActividades {
     }
 
     /**
+     * Obtiene los recursos de una actividad
+     */
+    public Map<String, Integer> obtenerRecursosDeActividad(String actividadId) {
+        Actividad actividad = buscarActividadPorId(actividadId);
+        if (actividad == null) {
+            return new HashMap<>();
+        }
+
+        return new HashMap<>(actividad.getRecursosAsignados());
+    }
+
+    /**
+     * Elimina un recurso de una actividad
+     */
+    public void eliminarRecursoDeActividad(String actividadId, String recursoId)
+            throws BrigadaException {
+
+        Actividad actividad = obtenerActividadPorId(actividadId);
+
+        try {
+            actividad.eliminarRecurso(recursoId);
+            guardarActividades();
+            System.out.println("[INFO] Recurso eliminado de la actividad '" + actividad.getNombre() + "'");
+
+        } catch (Exception e) {
+            throw new BrigadaException("Error al eliminar recurso: " + e.getMessage());
+        }
+    }
+
+    /**
      * Guarda las actividades en el archivo de persistencia.
      */
     private void guardarActividades() throws PersistenciaException {
         gestorAlmacenamiento.guardar(ARCHIVO_ACTIVIDADES, actividades);
+    }
+
+    public String generarIdActividadGestor() {
+        try {
+            // Buscar el número más alto en los IDs existentes
+            int maxNum = 0;
+
+            for (Actividad actividad : actividades) {
+                String id = actividad.getId();
+                if (id != null && id.startsWith("ACT-")) {
+                    try {
+                        String numeroStr = id.substring(4); // Quitar "ACT-"
+                        int num = Integer.parseInt(numeroStr);
+                        if (num > maxNum) {
+                            maxNum = num;
+                        }
+                    } catch (NumberFormatException e) {
+                        // Ignorar IDs que no siguen el formato
+                    }
+                }
+            }
+
+            // Incrementar para el nuevo ID
+            int nuevoNumero = maxNum + 1;
+
+            // Formatear con 3 dígitos: 001, 002, etc.
+            return String.format("ACT-%03d", nuevoNumero);
+
+        } catch (Exception e) {
+            // Fallback en caso de error
+            return "ACT-001";
+        }
+    }
+
+    /**
+     * Obtiene todos los voluntarios asignados a una actividad específica
+     * @param actividadId ID de la actividad
+     * @return Lista de objetos Voluntario asignados a la actividad
+     */
+    public List<Voluntario> obtenerVoluntariosDeActividad(String actividadId) {
+        Actividad actividad = buscarActividadPorId(actividadId);
+        if (actividad == null) {
+            return new ArrayList<>();
+        }
+
+        return obtenerVoluntariosDeActividad(actividad);
+    }
+
+    /**
+     * Obtiene todos los voluntarios asignados a una actividad específica
+     * @param actividad Objeto Actividad
+     * @return Lista de objetos Voluntario asignados a la actividad
+     */
+    public List<Voluntario> obtenerVoluntariosDeActividad(Actividad actividad) {
+        if (actividad == null) {
+            return new ArrayList<>();
+        }
+
+        Map<String, String> asignaciones = actividad.getVoluntariosAsignados();
+        List<Voluntario> voluntarios = new ArrayList<>();
+
+        for (String voluntarioId : asignaciones.keySet()) {
+            Voluntario voluntario = gestorVoluntarios.buscarVoluntarioPorId(voluntarioId);
+            if (voluntario != null) {
+                voluntarios.add(voluntario);
+            }
+        }
+
+        return voluntarios;
+    }
+
+    public List<Recurso> obtenerRecursosDeActividad(Actividad actividad) {
+        if (actividad == null) {
+            return new ArrayList<>();
+        }
+
+        Map<String, Integer> asignaciones = actividad.getRecursosAsignados();
+        List<Recurso> recursos = new ArrayList<>();
+
+        for (String recursoId : asignaciones.keySet()) {
+            Recurso recurso = gestorRecursos.buscarRecursoPorId(recursoId);
+            if (recurso != null) {
+                recursos.add(recurso);
+            }
+        }
+
+        return recursos;
+    }
+
+    /**
+     * Obtiene voluntarios de una actividad con su rol incluido
+     * @param actividadId ID de la actividad
+     * @return Mapa de Voluntario -> Rol en la actividad
+     */
+    public Map<Voluntario, String> obtenerVoluntariosConRolesDeActividad(String actividadId) {
+        Actividad actividad = buscarActividadPorId(actividadId);
+        if (actividad == null) {
+            return new HashMap<>();
+        }
+
+        Map<String, String> asignaciones = actividad.getVoluntariosAsignados();
+        Map<Voluntario, String> voluntariosConRoles = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : asignaciones.entrySet()) {
+            Voluntario voluntario = gestorVoluntarios.buscarVoluntarioPorId(entry.getKey());
+            if (voluntario != null) {
+                voluntariosConRoles.put(voluntario, entry.getValue());
+            }
+        }
+
+        return voluntariosConRoles;
+    }
+
+    /**
+     * Obtiene información detallada de los voluntarios de una actividad
+     * @param actividadId ID de la actividad
+     * @return Lista de strings con información formateada de cada voluntario
+     */
+    public List<String> obtenerInfoVoluntariosDeActividad(String actividadId) {
+        Map<Voluntario, String> voluntariosConRoles = obtenerVoluntariosConRolesDeActividad(actividadId);
+        List<String> infoVoluntarios = new ArrayList<>();
+
+        for (Map.Entry<Voluntario, String> entry : voluntariosConRoles.entrySet()) {
+            Voluntario v = entry.getKey();
+            String rol = entry.getValue();
+
+            String info = String.format("%s %s (ID: %s) - Rol: %s | Email: %s | Tel: %s",
+                    v.getNombre(),
+                    v.getId(),
+                    rol,
+                    v.getEmail(),
+                    v.getTelefono());
+
+            infoVoluntarios.add(info);
+        }
+
+        return infoVoluntarios;
+    }
+
+    /**
+     * Obtiene voluntarios de una actividad filtrados por rol
+     * @param actividadId ID de la actividad
+     * @param rol Rol a filtrar
+     * @return Lista de voluntarios con el rol especificado
+     */
+    public List<Voluntario> obtenerVoluntariosDeActividadPorRol(String actividadId, String rol) {
+        Map<Voluntario, String> voluntariosConRoles = obtenerVoluntariosConRolesDeActividad(actividadId);
+        List<Voluntario> voluntariosFiltrados = new ArrayList<>();
+
+        for (Map.Entry<Voluntario, String> entry : voluntariosConRoles.entrySet()) {
+            if (entry.getValue().equalsIgnoreCase(rol)) {
+                voluntariosFiltrados.add(entry.getKey());
+            }
+        }
+
+        return voluntariosFiltrados;
+    }
+
+    /**
+     * Obtiene el número de voluntarios asignados a una actividad
+     * @param actividadId ID de la actividad
+     * @return Cantidad de voluntarios asignados
+     */
+    public int obtenerCantidadVoluntariosEnActividad(String actividadId) {
+        Actividad actividad = buscarActividadPorId(actividadId);
+        if (actividad == null) {
+            return 0;
+        }
+
+        return actividad.getVoluntariosAsignados().size();
+    }
+
+    /**
+     * Verifica si un voluntario está asignado a una actividad
+     * @param actividadId ID de la actividad
+     * @param voluntarioId ID del voluntario
+     * @return true si el voluntario está asignado, false en caso contrario
+     */
+    public boolean estaVoluntarioEnActividad(String actividadId, String voluntarioId) {
+        Actividad actividad = buscarActividadPorId(actividadId);
+        if (actividad == null) {
+            return false;
+        }
+
+        return actividad.getVoluntariosAsignados().containsKey(voluntarioId);
     }
 
     /**
@@ -254,8 +471,7 @@ public class GestorActividades {
     /**
      * Registra resultados completos de actividad (NUEVO MÉTODO para RF-07).
      */
-    public void registrarResultados(String actividadId, int personasBeneficiadas, double horasTrabajadas,
-                                    String materiales, String resultados, String observaciones)
+    public void registrarResultados(String actividadId, int personasBeneficiadas, double horasTrabajadas, String resultados, String observaciones)
             throws BrigadaException {
 
         Actividad actividad = obtenerActividadPorId(actividadId);
@@ -269,13 +485,11 @@ public class GestorActividades {
                     "Resultados de la actividad '%s':\n" +
                             "• Personas beneficiadas: %d\n" +
                             "• Horas trabajadas: %.1f\n" +
-                            "• Materiales utilizados: %s\n" +
                             "• Resultados alcanzados: %s\n" +
                             "• Observaciones: %s",
                     actividad.getNombre(),
                     personasBeneficiadas,
                     horasTrabajadas,
-                    materiales,
                     resultados,
                     observaciones
             );
